@@ -73,6 +73,7 @@ export interface Collections {
   leaveRequests: Collection;
   auditLogs: Collection;
   tenantEmailConfigs: Collection;
+  emailTemplates: Collection;
 }
 
 export function getCollections(): Collections {
@@ -106,7 +107,8 @@ export function getCollections(): Collections {
     leaveBalances: database.collection('leave_balances'),
     leaveRequests: database.collection('leave_requests'),
     auditLogs: database.collection('audit_logs'),
-    tenantEmailConfigs: database.collection('tenant_email_configs')
+    tenantEmailConfigs: database.collection('tenant_email_configs'),
+    emailTemplates: database.collection('email_templates')
   };
 }
 

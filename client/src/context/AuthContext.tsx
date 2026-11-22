@@ -11,6 +11,7 @@ interface AuthContextType {
   hasRole: (...roles: RoleCode[]) => boolean;
   isCoreTeam: boolean;
   isLakshay: boolean;
+  canAccessEmailTemplates: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -102,8 +103,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     )
   );
 
+  // Email Templates access: Exclusively Lakshay, Diya, Parth, Anshuman, and Ishita
+  const canAccessEmailTemplates = Boolean(
+    session && (
+      ['lakshay', 'diya', 'parth', 'anshuman', 'ishita'].some((name) =>
+        (session.user.fullName || '').toLowerCase().includes(name) ||
+        (session.user.email || '').toLowerCase().includes(name)
+      ) ||
+      isLakshay
+    )
+  );
+
   return (
-    <AuthContext.Provider value={{ session, loading, login, quickSwitchRole, logout, hasRole, isCoreTeam, isLakshay }}>
+    <AuthContext.Provider value={{ session, loading, login, quickSwitchRole, logout, hasRole, isCoreTeam, isLakshay, canAccessEmailTemplates }}>
       {children}
     </AuthContext.Provider>
   );

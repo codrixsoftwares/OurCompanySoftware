@@ -612,7 +612,7 @@ export const RecruitmentView: React.FC = () => {
     setJobDescription(job.description || '');
     setJobStatus(job.status || 'OPEN');
     setJobEmailTemplates(job.emailTemplates || DEFAULT_TEMPLATES);
-    
+
     const sender = job.senderEmail || 'careers@codrix.co.in';
     const isStandardSender = ['careers@codrix.co.in', 'connect@codrix.co.in', 'hr@codrix.co.in', 'sales@codrix.co.in'].includes(sender);
     if (isStandardSender) {
@@ -850,11 +850,10 @@ export const RecruitmentView: React.FC = () => {
     <div className="space-y-4 font-['Plus_Jakarta_Sans',sans-serif]">
       {/* Action Toast Feedback */}
       {actionFeedback && (
-        <div className={`p-3.5 rounded-2xl text-xs font-bold border transition flex items-center justify-between shadow-md animate-in fade-in ${
-          actionFeedback.type === 'success'
+        <div className={`p-3.5 rounded-2xl text-xs font-bold border transition flex items-center justify-between shadow-md animate-in fade-in ${actionFeedback.type === 'success'
             ? 'bg-[#EAFBF3] text-[#0A7E46] border-[#B6EAD0]'
             : 'bg-rose-50 text-rose-800 border-rose-200'
-        }`}>
+          }`}>
           <div className="flex items-center gap-2">
             {actionFeedback.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
             <span>{actionFeedback.message}</span>
@@ -885,11 +884,10 @@ export const RecruitmentView: React.FC = () => {
           <div className="bg-[#F7F5FE] p-1 rounded-xl border border-[#E7E0FB] flex items-center gap-1">
             <button
               onClick={() => setActiveView('excel')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                activeView === 'excel'
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${activeView === 'excel'
                   ? 'bg-white text-[#7C2CF5] shadow-xs'
                   : 'text-[#585172] hover:text-[#120E24]'
-              }`}
+                }`}
               title="Spreadsheet Excel Format View"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
@@ -898,11 +896,10 @@ export const RecruitmentView: React.FC = () => {
 
             <button
               onClick={() => setActiveView('kanban')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                activeView === 'kanban'
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${activeView === 'kanban'
                   ? 'bg-white text-[#7C2CF5] shadow-xs'
                   : 'text-[#585172] hover:text-[#120E24]'
-              }`}
+                }`}
               title="Kanban Board View (All 7 Stages)"
             >
               <Kanban className="w-3.5 h-3.5" />
@@ -911,11 +908,10 @@ export const RecruitmentView: React.FC = () => {
 
             <button
               onClick={() => setActiveView('openings')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                activeView === 'openings'
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${activeView === 'openings'
                   ? 'bg-white text-[#7C2CF5] shadow-xs'
                   : 'text-[#585172] hover:text-[#120E24]'
-              }`}
+                }`}
               title="Manage Job Openings & Website Scripts"
             >
               <Briefcase className="w-3.5 h-3.5" />
@@ -1121,15 +1117,14 @@ export const RecruitmentView: React.FC = () => {
                         </td>
 
                         <td className="py-3 px-4 border-r border-[#E7E0FB]">
-                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                            app.stageName === 'Hired'
+                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold ${app.stageName === 'Hired'
                               ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                               : app.stageName === 'Offer Extended'
-                              ? 'bg-purple-50 text-purple-800 border border-purple-200'
-                              : app.stageName === 'Internship'
-                              ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                              : 'bg-[#EDE4FF] text-[#7C2CF5] border border-[#DDD0FE]'
-                          }`}>
+                                ? 'bg-purple-50 text-purple-800 border border-purple-200'
+                                : app.stageName === 'Internship'
+                                  ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                                  : 'bg-[#EDE4FF] text-[#7C2CF5] border border-[#DDD0FE]'
+                            }`}>
                             {app.stageName === 'Internship' && <GraduationCap className="w-3 h-3 mr-1 text-amber-700" />}
                             {app.stageName}
                           </span>
@@ -1386,13 +1381,12 @@ export const RecruitmentView: React.FC = () => {
                     <span className="px-2 py-0.5 rounded-md bg-[#EDE4FF] text-[#7C2CF5] font-mono text-[10px] font-bold">
                       {job.requisitionCode}
                     </span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      job.status === 'OPEN'
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${job.status === 'OPEN'
                         ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                         : job.status === 'DRAFT'
-                        ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                        : 'bg-slate-100 text-slate-600'
-                    }`}>
+                          ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                          : 'bg-slate-100 text-slate-600'
+                      }`}>
                       ● {job.status}
                     </span>
                   </div>
@@ -1564,18 +1558,17 @@ export const RecruitmentView: React.FC = () => {
                       const isPassed =
                         candidateDetail.application &&
                         stage.stageOrder <=
-                          (stages.find((s) => s.id === candidateDetail.application?.stageId)?.stageOrder || 1);
+                        (stages.find((s) => s.id === candidateDetail.application?.stageId)?.stageOrder || 1);
 
                       return (
                         <div key={stage.id} className="space-y-1">
                           <div
-                            className={`h-2 rounded-full transition ${
-                              isCurrent
+                            className={`h-2 rounded-full transition ${isCurrent
                                 ? 'bg-[#7C2CF5] ring-2 ring-[#7C2CF5]/40'
                                 : isPassed
-                                ? 'bg-emerald-500'
-                                : 'bg-[#E7E0FB]'
-                            }`}
+                                  ? 'bg-emerald-500'
+                                  : 'bg-[#E7E0FB]'
+                              }`}
                           />
                           <span className={`text-[9px] font-bold block truncate ${isCurrent ? 'text-[#7C2CF5]' : 'text-[#585172]'}`}>
                             {stage.name}
@@ -1813,11 +1806,10 @@ export const RecruitmentView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setJobFormTab('details')}
-                className={`pb-2 border-b-2 transition flex items-center gap-1.5 ${
-                  jobFormTab === 'details'
+                className={`pb-2 border-b-2 transition flex items-center gap-1.5 ${jobFormTab === 'details'
                     ? 'border-[#7C2CF5] text-[#7C2CF5]'
                     : 'border-transparent text-[#585172]'
-                }`}
+                  }`}
               >
                 <Briefcase className="w-3.5 h-3.5" />
                 <span>1. Requisition & Role Specifications</span>
@@ -1826,11 +1818,10 @@ export const RecruitmentView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setJobFormTab('emails')}
-                className={`pb-2 border-b-2 transition flex items-center gap-1.5 ${
-                  jobFormTab === 'emails'
+                className={`pb-2 border-b-2 transition flex items-center gap-1.5 ${jobFormTab === 'emails'
                     ? 'border-[#7C2CF5] text-[#7C2CF5]'
                     : 'border-transparent text-[#585172]'
-                }`}
+                  }`}
               >
                 <Mail className="w-3.5 h-3.5" />
                 <span>2. Automated Candidate Journey Emails</span>
@@ -2092,11 +2083,10 @@ export const RecruitmentView: React.FC = () => {
                               key={prov.id}
                               type="button"
                               onClick={() => setJobEmailProvider(prov.id as any)}
-                              className={`p-2 rounded-xl text-left border transition ${
-                                isSelected
+                              className={`p-2 rounded-xl text-left border transition ${isSelected
                                   ? 'bg-white border-[#7C2CF5] ring-2 ring-[#7C2CF5]/20 shadow-xs'
                                   : 'bg-white/60 border-[#E7E0FB] hover:border-[#7C2CF5]/50'
-                              }`}
+                                }`}
                             >
                               <div className="flex items-center justify-between">
                                 <span className={`font-bold text-[11px] ${isSelected ? 'text-[#7C2CF5]' : 'text-[#120E24]'}`}>
@@ -2165,11 +2155,10 @@ export const RecruitmentView: React.FC = () => {
 
                     {testFeedback && (
                       <div
-                        className={`p-2.5 rounded-xl text-xs flex items-center gap-2 ${
-                          testFeedback.success
+                        className={`p-2.5 rounded-xl text-xs flex items-center gap-2 ${testFeedback.success
                             ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
                             : 'bg-rose-50 border border-rose-200 text-rose-800'
-                        }`}
+                          }`}
                       >
                         {testFeedback.success ? (
                           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -2630,7 +2619,7 @@ export const RecruitmentView: React.FC = () => {
                   </button>
                 </div>
                 <pre className="p-3 bg-[#120E24] text-[#E7E0FB] rounded-xl text-[11px] font-mono overflow-x-auto leading-relaxed">
-{`<div id="codrix-careers-container" data-codrix-job="${webscriptModalJob.id}"></div>
+                  {`<div id="codrix-careers-container" data-codrix-job="${webscriptModalJob.id}"></div>
 <script src="${apiBaseUrl}/api/v1/public/jobs/${webscriptModalJob.id}/embed.js" defer></script>`}
                 </pre>
               </div>
@@ -2657,7 +2646,7 @@ export const RecruitmentView: React.FC = () => {
                   Endpoint: <code className="font-bold text-[#7C2CF5]">POST {apiBaseUrl}/api/v1/public/jobs/{webscriptModalJob.id}/apply</code>
                 </div>
                 <pre className="p-3 bg-[#120E24] text-[#E7E0FB] rounded-xl text-[11px] font-mono overflow-x-auto leading-relaxed">
-{`fetch('${apiBaseUrl}/api/v1/public/jobs/${webscriptModalJob.id}/apply', {
+                  {`fetch('${apiBaseUrl}/api/v1/public/jobs/${webscriptModalJob.id}/apply', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({

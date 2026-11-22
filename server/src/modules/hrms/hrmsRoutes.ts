@@ -7,6 +7,7 @@ import { AuditService } from '../../core/audit/auditService.js';
 import { RoleCode } from '../../core/auth/types.js';
 import { SocketService } from '../../core/socket/socketService.js';
 import { EmailDispatcher } from '../../core/email/emailDispatcher.js';
+import { EmailTemplateService } from '../../core/email/emailTemplateService.js';
 
 // Helper function to dispatch stylized login credentials email
 async function sendCredentialsEmailNotification(params: {
@@ -24,6 +25,29 @@ async function sendCredentialsEmailNotification(params: {
   if (!validRecipients.length) return null;
 
   const portalUrl = 'https://connect.codrix.co.in';
+
+  // Load customized template from MongoDB Atlas if available
+  const template = await EmailTemplateService.getTemplate(tenantId, 'HRMS_CREDENTIALS_UPDATE');
+  const variables = {
+    fullName,
+    loginEmail,
+    password: password || 'Unchanged (Existing password remains active)',
+    employeeCode: employeeCode || '—',
+    jobTitle: jobTitle || 'Team Member',
+    roleCode: roleCode || 'EMPLOYEE',
+    portalUrl
+  };
+
+  if (template) {
+    const rendered = EmailTemplateService.render(template, variables);
+    return await EmailDispatcher.send({
+      tenantId,
+      to: validRecipients,
+      subject: rendered.subject,
+      html: rendered.html,
+      text: rendered.text
+    });
+  }
 
   const html = `
 <!DOCTYPE html>

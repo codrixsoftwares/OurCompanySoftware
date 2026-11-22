@@ -161,3 +161,30 @@ export function requireLakshaySuperAdmin(req: Request, res: Response, next: Next
 
   next();
 }
+
+/**
+ * Access restricted exclusively to SuperAdmin Lakshay, Diya, Parth, Anshuman, and Ishita
+ */
+export function requireEmailTemplatesAccess(req: Request, res: Response, next: NextFunction): void {
+  if (!req.auth?.user) {
+    res.status(401).json({ error: { code: 'UNAUTHENTICATED', message: 'Authentication required.' } });
+    return;
+  }
+
+  const email = (req.auth.user.email || '').toLowerCase().trim();
+  const name = (req.auth.user.fullName || '').toLowerCase().trim();
+  const allowed = ['lakshay', 'diya', 'parth', 'anshuman', 'ishita'];
+  const hasAccess = allowed.some((a) => email.includes(a) || name.includes(a));
+
+  if (!hasAccess) {
+    res.status(403).json({
+      error: {
+        code: 'FORBIDDEN',
+        message: 'Access Restricted: Only SuperAdmin Lakshay, Diya, Parth, Anshuman, and Ishita are authorized to access and modify CodRix Email Templates.'
+      }
+    });
+    return;
+  }
+
+  next();
+}

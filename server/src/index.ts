@@ -17,6 +17,7 @@ import reportsRoutes from './modules/reports/reportsRoutes.js';
 import settingsRoutes from './modules/settings/settingsRoutes.js';
 import publicRoutes from './modules/public/publicRoutes.js';
 import projectsRoutes from './modules/projects/projectsRoutes.js';
+import emailTemplateRoutes from './modules/templates/templateRoutes.js';
 
 dotenv.config();
 
@@ -53,6 +54,7 @@ app.use('/api/v1/hrms', hrmsRoutes);
 app.use('/api/v1/reports', reportsRoutes);
 app.use('/api/v1/settings', settingsRoutes);
 app.use('/api/v1/projects', projectsRoutes);
+app.use('/api/v1/email-templates', emailTemplateRoutes);
 app.use('/api/v1/public', publicRoutes);
 
 // Single Server Deployment: Serve Compiled Frontend (client/dist)

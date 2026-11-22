@@ -7,6 +7,7 @@ import { AuditService } from '../../core/audit/auditService.js';
 import { uploadToCloudinary } from '../../core/cloudinary.js';
 import { EmailDispatcher } from '../../core/email/emailDispatcher.js';
 import { SocketService } from '../../core/socket/socketService.js';
+import { EmailTemplateService } from '../../core/email/emailTemplateService.js';
 
 const router = Router();
 
@@ -1284,12 +1285,24 @@ router.post('/candidates/:id/provision-credentials', requireAuth, async (req: Re
             ? 'Engineering & Sprints System: Sprint boards, architecture tasks, bug reporting, code reviews, and daily updates.'
             : 'Enterprise Operations System: Access aligned with your corporate role specifications.';
 
-        const emailResult = await EmailDispatcher.send({
-          tenantId,
-          to: candidate.emailNormalized,
-          subject: `🎓 Welcome to CodRix — Your Official Portal Credentials & Role Access (${designation})`,
-          text: `Dear ${candidate.fullName},\n\nCongratulations on joining the CodRix team! Your official login credentials and system access have been provisioned.\n\nSoftware Access Login URL: ${portalUrl}\nUsername / Login Email: ${emailToUse}\nTemporary Password: ${rawPassword}\nDesignation: ${designation}\nRole Access: ${roleCode}\nReporting Manager: ${reportingManagerName}\n\nAccess Scope: ${roleScopeDescription}\n\nPlease log in at ${portalUrl}, review your dashboard, and keep these credentials secure.\n\nBest regards,\nPeople & Culture Team\nCodRix Private Limited`,
-          html: `
+        // Look up customized email template from MongoDB Atlas
+        const customTemplate = await EmailTemplateService.getTemplate(tenantId, 'ATS_WELCOME_CREDENTIALS');
+        const templateVariables = {
+          candidateName: candidate.fullName,
+          portalUrl,
+          emailToUse,
+          rawPassword,
+          employeeCode: employeePayload.employeeCode,
+          designation,
+          department,
+          reportingManagerName,
+          roleCode,
+          roleScopeDescription
+        };
+
+        let emailSubject = `🎓 Welcome to CodRix — Your Official Portal Credentials & Role Access (${designation})`;
+        let emailText = `Dear ${candidate.fullName},\n\nCongratulations on joining the CodRix team! Your official login credentials and system access have been provisioned.\n\nSoftware Access Login URL: ${portalUrl}\nUsername / Login Email: ${emailToUse}\nTemporary Password: ${rawPassword}\nDesignation: ${designation}\nRole Access: ${roleCode}\nReporting Manager: ${reportingManagerName}\n\nAccess Scope: ${roleScopeDescription}\n\nPlease log in at ${portalUrl}, review your dashboard, and keep these credentials secure.\n\nBest regards,\nPeople & Culture Team\nCodRix Private Limited`;
+        let emailHtml = `
             <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 620px; margin: auto; padding: 28px; border: 1px solid #E7E0FB; border-radius: 20px; background-color: #FBFBFE;">
               <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
                 <div style="background-color: #7C2CF5; color: white; width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px;">C</div>
@@ -1353,7 +1366,21 @@ router.post('/candidates/:id/provision-credentials', requireAuth, async (req: Re
                 Provisioned by <strong>${req.auth!.user.fullName}</strong> (${req.auth!.user.roles[0]}) &bull; CodRix Private Limited &bull; <a href="${portalUrl}" style="color: #7C2CF5; text-decoration: none;">connect.codrix.co.in</a>
               </p>
             </div>
-          `
+          `;
+
+        if (customTemplate) {
+          const rendered = EmailTemplateService.render(customTemplate, templateVariables);
+          emailSubject = rendered.subject;
+          emailText = rendered.text;
+          emailHtml = rendered.html;
+        }
+
+        const emailResult = await EmailDispatcher.send({
+          tenantId,
+          to: candidate.emailNormalized,
+          subject: emailSubject,
+          text: emailText,
+          html: emailHtml
         });
         emailDispatched = emailResult.success;
         if (!emailResult.success) emailError = emailResult.error;

@@ -19,7 +19,8 @@ import {
   X,
   MessageSquare,
   FolderPlus,
-  FolderKanban
+  FolderKanban,
+  MailCheck
 } from 'lucide-react';
 
 interface AppShellProps {
@@ -29,7 +30,7 @@ interface AppShellProps {
 }
 
 export const AppShell: React.FC<AppShellProps> = ({ currentTab, onSelectTab, children }) => {
-  const { session, logout, quickSwitchRole, hasRole, isCoreTeam, isLakshay } = useAuth();
+  const { session, logout, quickSwitchRole, hasRole, isCoreTeam, isLakshay, canAccessEmailTemplates } = useAuth();
   const [roleSwitcherOpen, setRoleSwitcherOpen] = useState(false);
   const [team, setTeam] = useState<any[]>([]);
   const [socketOnline, setSocketOnline] = useState(false);
@@ -70,7 +71,10 @@ export const AppShell: React.FC<AppShellProps> = ({ currentTab, onSelectTab, chi
     if (!isCoreTeam && currentTab === 'mailbox') {
       onSelectTab(isSalesOnly ? 'crm' : 'dashboard');
     }
-  }, [isSalesOnly, isCoreTeam, currentTab, onSelectTab]);
+    if (!canAccessEmailTemplates && currentTab === 'email-templates') {
+      onSelectTab(isSalesOnly ? 'crm' : 'dashboard');
+    }
+  }, [isSalesOnly, isCoreTeam, canAccessEmailTemplates, currentTab, onSelectTab]);
 
   const navItems = [
     { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard, visible: !isSalesOnly },
@@ -80,6 +84,7 @@ export const AppShell: React.FC<AppShellProps> = ({ currentTab, onSelectTab, chi
     { id: 'projects', label: 'Projects', icon: FolderKanban, visible: isCoreTeam || isLakshay },
     { id: 'engineering', label: 'Engineering & Sprints', icon: Code2, visible: hasRole('COMPANY_ADMIN', 'ENGINEERING_LEAD', 'SDE2', 'SDE1', 'INTERN') },
     { id: 'hrms', label: 'HRMS & Attendance', icon: CalendarCheck, visible: !isSalesOnly || hasRole('COMPANY_ADMIN') },
+    { id: 'email-templates', label: 'Email Templates', icon: MailCheck, visible: canAccessEmailTemplates },
     { id: 'audit', label: 'Audit & Governance', icon: ShieldCheck, visible: hasRole('COMPANY_ADMIN', 'SUPER_ADMIN', 'BRANCH_MANAGER') },
     { id: 'settings', label: 'Domain & Settings', icon: Settings, visible: hasRole('COMPANY_ADMIN', 'SUPER_ADMIN') }
   ];

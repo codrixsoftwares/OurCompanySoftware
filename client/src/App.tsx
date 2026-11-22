@@ -10,11 +10,12 @@ import { CrmView } from './views/crm/CrmView.js';
 import { ProjectsView } from './views/projects/ProjectsView.js';
 import { EngineeringView } from './views/engineering/EngineeringView.js';
 import { HrmsView } from './views/hrms/HrmsView.js';
+import { EmailTemplatesView } from './views/templates/EmailTemplatesView.js';
 import { AuditView } from './views/audit/AuditView.js';
 import { SettingsView } from './views/settings/SettingsView.js';
 
 const MainApp: React.FC = () => {
-  const { session, loading, isCoreTeam } = useAuth();
+  const { session, loading, isCoreTeam, canAccessEmailTemplates } = useAuth();
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
 
   if (loading) {
@@ -64,6 +65,18 @@ const MainApp: React.FC = () => {
       )}
       {currentTab === 'engineering' && <EngineeringView onNavigate={setCurrentTab} />}
       {currentTab === 'hrms' && <HrmsView />}
+      {currentTab === 'email-templates' && (
+        canAccessEmailTemplates ? (
+          <EmailTemplatesView />
+        ) : (
+          <div className="p-12 text-center text-[#585172] bg-white rounded-3xl border border-[#E7E0FB] m-6">
+            <h2 className="text-base font-extrabold text-[#120E24]">Access Restricted</h2>
+            <p className="text-xs mt-1.5 max-w-md mx-auto">
+              Email Templates Studio is strictly restricted to SuperAdmin Leadership (Lakshay, Diya, Parth, Anshuman, and Ishita).
+            </p>
+          </div>
+        )
+      )}
       {currentTab === 'audit' && <AuditView />}
       {currentTab === 'settings' && <SettingsView />}
     </AppShell>
