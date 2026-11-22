@@ -79,6 +79,7 @@ export interface Collections {
   auditLogs: Collection;
   tenantEmailConfigs: Collection;
   emailTemplates: Collection;
+  userSessions: Collection;
 }
 
 export function getCollections(): Collections {
@@ -113,7 +114,8 @@ export function getCollections(): Collections {
     leaveRequests: database.collection('leave_requests'),
     auditLogs: database.collection('audit_logs'),
     tenantEmailConfigs: database.collection('tenant_email_configs'),
-    emailTemplates: database.collection('email_templates')
+    emailTemplates: database.collection('email_templates'),
+    userSessions: database.collection('user_sessions')
   };
 }
 
@@ -352,6 +354,8 @@ export async function ensureMongoIndexes() {
       cols.leads.createIndex({ tenantId: 1, status: 1 }, { background: true }),
       cols.projects.createIndex({ tenantId: 1, status: 1 }, { background: true }),
       cols.tasks.createIndex({ tenantId: 1, projectId: 1 }, { background: true }),
+      cols.userSessions.createIndex({ tenantId: 1, userId: 1, status: 1 }, { background: true }),
+      cols.userSessions.createIndex({ tenantId: 1, loginAt: -1 }, { background: true }),
       cols.auditLogs.createIndex({ tenantId: 1, timestamp: -1 }, { background: true })
     ]);
     console.log('⚡ High-performance MongoDB compound indexes ensured successfully.');

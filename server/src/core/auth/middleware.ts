@@ -16,9 +16,25 @@ declare global {
   }
 }
 
+// Safe cookie parser helper
+function extractCookieToken(req: Request): string | undefined {
+  if (req.cookies?.codrix_session_token) return req.cookies.codrix_session_token;
+  if (req.cookies?.codrix_token) return req.cookies.codrix_token;
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) return undefined;
+  const parts = cookieHeader.split(';');
+  for (const part of parts) {
+    const [name, ...value] = part.trim().split('=');
+    if (name === 'codrix_session_token' || name === 'codrix_token') {
+      return decodeURIComponent(value.join('='));
+    }
+  }
+  return undefined;
+}
+
 export async function authMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : (req.cookies?.codrix_token as string);
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : extractCookieToken(req);
 
   if (!token) {
     next();

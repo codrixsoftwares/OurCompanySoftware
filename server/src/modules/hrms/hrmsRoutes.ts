@@ -927,4 +927,76 @@ router.delete('/leave/requests/:id', requireAuth, requireLakshaySuperAdmin, asyn
   }
 });
 
+// GET /api/v1/hrms/session-audit-logs (Strictly Founder & Superadmin Lakshay Exclusive EMS Log)
+router.get('/session-audit-logs', requireAuth, requireLakshaySuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const cols = getCollections();
+    const tenantId = req.auth!.user.tenantId;
+
+    const [sessions, activeCount, totalToday] = await Promise.all([
+      cols.userSessions
+        .find({ tenantId })
+        .sort({ loginAt: -1 })
+        .limit(150)
+        .toArray(),
+      cols.userSessions.countDocuments({ tenantId, status: 'ACTIVE' }),
+      cols.userSessions.countDocuments({
+        tenantId,
+        loginAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) }
+      })
+    ]);
+
+    res.json({
+      data: {
+        activeCount,
+        totalToday,
+        sessions: sessions.map((s) => ({
+          ...s,
+          id: s._id.toString()
+        }))
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// POST /api/v1/hrms/session-audit-logs/:id/revoke (Founder & Superadmin Lakshay Revoke Staff Session)
+router.post('/session-audit-logs/:id/revoke', requireAuth, requireLakshaySuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const cols = getCollections();
+    const { id } = req.params;
+    const now = new Date();
+
+    const session = await cols.userSessions.findOne({ _id: new ObjectId(id) });
+    if (!session) {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Session not found' } });
+      return;
+    }
+
+    const durationMs = session.loginAt ? now.getTime() - new Date(session.loginAt).getTime() : 0;
+    await cols.userSessions.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          logoutAt: now,
+          sessionDurationMs: durationMs,
+          status: 'REVOKED',
+          revokedBy: 'Lakshay (Founder & Overall Superadmin)'
+        }
+      }
+    );
+
+    SocketService.emitToTenant(session.tenantId, 'session:revoked', {
+      userId: session.userId,
+      userEmail: session.userEmail,
+      sessionId: id
+    });
+
+    res.json({ data: { success: true, message: `Active session for ${session.userEmail} has been terminated.` } });
+  } catch (err: any) {
+    res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
 export default router;

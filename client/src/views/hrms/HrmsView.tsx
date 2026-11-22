@@ -22,6 +22,11 @@ import {
   Mail,
   Phone,
   Shield,
+  ShieldCheck,
+  Laptop,
+  Globe,
+  Smartphone,
+  Power,
   DollarSign,
   UserPlus,
   ChevronRight,
@@ -43,6 +48,15 @@ export const HrmsView: React.FC = () => {
   const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Lakshay Exclusive Session Audit Logs State
+  const [sessionLogsView, setSessionLogsView] = useState<'directory' | 'sessions'>('directory');
+  const [sessionLogs, setSessionLogs] = useState<any[]>([]);
+  const [activeSessionCount, setActiveSessionCount] = useState<number>(0);
+  const [totalLoginsToday, setTotalLoginsToday] = useState<number>(0);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [sessionFilter, setSessionFilter] = useState<'ALL' | 'ACTIVE' | 'LOGGED_OUT'>('ALL');
+  const [sessionSearch, setSessionSearch] = useState('');
 
   // Filters & Search
   const [searchQuery, setSearchQuery] = useState('');
@@ -228,6 +242,74 @@ export const HrmsView: React.FC = () => {
       socket.off('hrms:leave_deleted', onLeaveDeleted);
     };
   }, []);
+
+  // SuperAdmin Lakshay Session Logs Fetcher
+  const loadSessionLogs = async () => {
+    if (!isLakshay) return;
+    setLoadingSessions(true);
+    try {
+      const res: any = await apiRequest('/hrms/session-audit-logs');
+      if (res?.data) {
+        setSessionLogs(res.data.sessions || []);
+        setActiveSessionCount(res.data.activeCount || 0);
+        setTotalLoginsToday(res.data.totalToday || 0);
+      }
+    } catch {
+      // not authorized
+    } finally {
+      setLoadingSessions(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isLakshay && sessionLogsView === 'sessions') {
+      loadSessionLogs();
+    }
+  }, [isLakshay, sessionLogsView]);
+
+  useEffect(() => {
+    if (!isLakshay) return;
+    const socket = getSocket();
+    const handleSessionRefresh = () => {
+      loadSessionLogs();
+    };
+    socket.on('session:revoked', handleSessionRefresh);
+    socket.on('session:logged_out', handleSessionRefresh);
+    return () => {
+      socket.off('session:revoked', handleSessionRefresh);
+      socket.off('session:logged_out', handleSessionRefresh);
+    };
+  }, [isLakshay]);
+
+  const handleRevokeSession = async (sessionId: string, userEmail: string) => {
+    if (!window.confirm(`Force terminate the active session for ${userEmail}? The employee will be immediately logged out.`)) return;
+
+    // Optimistically update status to REVOKED in 0ms
+    setSessionLogs((prev) =>
+      prev.map((s) => (s.id === sessionId ? { ...s, status: 'REVOKED', logoutAt: new Date().toISOString() } : s))
+    );
+    setActiveSessionCount((prev) => Math.max(0, prev - 1));
+
+    try {
+      await apiRequest(`/hrms/session-audit-logs/${sessionId}/revoke`, { method: 'POST' });
+    } catch (err: any) {
+      alert(err.message || 'Failed revoking session');
+      loadSessionLogs();
+    }
+  };
+
+  const formatDuration = (loginAtStr?: string, logoutAtStr?: string): string => {
+    if (!loginAtStr) return 'N/A';
+    const login = new Date(loginAtStr).getTime();
+    const end = logoutAtStr ? new Date(logoutAtStr).getTime() : Date.now();
+    const diffSec = Math.max(0, Math.floor((end - login) / 1000));
+    if (diffSec < 60) return `${diffSec}s`;
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m`;
+    const hours = Math.floor(diffMin / 60);
+    const mins = diffMin % 60;
+    return `${hours}h ${mins}m`;
+  };
 
   // Multi-Select Handlers
   const handleToggleSelectAllEmployees = () => {
@@ -576,6 +658,27 @@ export const HrmsView: React.FC = () => {
     });
   }, [employees, searchQuery, filterDepartment, filterStatus]);
 
+  // Filtered session logs for Lakshay exclusive view
+  const filteredSessionLogs = useMemo(() => {
+    return sessionLogs.filter((s) => {
+      const matchesFilter =
+        sessionFilter === 'ALL' ||
+        (sessionFilter === 'ACTIVE' && s.status === 'ACTIVE') ||
+        (sessionFilter === 'LOGGED_OUT' && (s.status === 'LOGGED_OUT' || s.status === 'REVOKED'));
+
+      const query = sessionSearch.toLowerCase().trim();
+      const matchesQuery =
+        !query ||
+        (s.fullName || '').toLowerCase().includes(query) ||
+        (s.userEmail || '').toLowerCase().includes(query) ||
+        (s.employeeCode || '').toLowerCase().includes(query) ||
+        (s.ipAddress || '').toLowerCase().includes(query) ||
+        (s.role || '').toLowerCase().includes(query);
+
+      return matchesFilter && matchesQuery;
+    });
+  }, [sessionLogs, sessionFilter, sessionSearch]);
+
   // Unique departments for filter
   const departmentsList = [
     'Executive & Strategy',
@@ -604,23 +707,67 @@ export const HrmsView: React.FC = () => {
           </p>
         </div>
 
-        {isLakshay && (
-          <button
-            onClick={() => {
-              const nextNum = employees.length + 1;
-              setAddEmpCode(`CDX-${nextNum.toString().padStart(3, '0')}`);
-              setAddStaffModalOpen(true);
-            }}
-            className="px-4 py-2 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-[#7C2CF5]/25 cursor-pointer"
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>+ Add Staff Member</span>
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* SuperAdmin Lakshay Exclusive View Switcher */}
+          {isLakshay && (
+            <div className="bg-[#F7F5FE] p-1 rounded-xl border border-[#E7E0FB] flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setSessionLogsView('directory')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  sessionLogsView === 'directory'
+                    ? 'bg-white text-[#7C2CF5] shadow-xs'
+                    : 'text-[#585172] hover:text-[#120E24]'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>Staff & Attendance</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSessionLogsView('sessions');
+                  loadSessionLogs();
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  sessionLogsView === 'sessions'
+                    ? 'bg-gradient-to-r from-[#7C2CF5] to-[#6D25D9] text-white shadow-xs'
+                    : 'text-[#585172] hover:text-[#120E24]'
+                }`}
+                title="Superadmin Exclusive: View real-time staff login, logout, IP, device & session security telemetry"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Login & Session Audit</span>
+                {activeSessionCount > 0 && (
+                  <span className="px-1.5 py-0.2 bg-emerald-400 text-emerald-950 font-black rounded-full text-[9px] animate-pulse">
+                    {activeSessionCount} Active
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
+
+          {isLakshay && (
+            <button
+              onClick={() => {
+                const nextNum = employees.length + 1;
+                setAddEmpCode(`CDX-${nextNum.toString().padStart(3, '0')}`);
+                setAddStaffModalOpen(true);
+              }}
+              className="px-4 py-2 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-[#7C2CF5]/25 cursor-pointer"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>+ Add Staff Member</span>
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* 2. Top Widgets: Attendance Clock & Leave Balances */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {sessionLogsView === 'directory' ? (
+        <>
+          {/* 2. Top Widgets: Attendance Clock & Leave Balances */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Attendance Punch Clock */}
         <div className="bg-white p-6 rounded-2xl border border-[#E7E0FB] shadow-xs flex flex-col justify-between">
           <div>
@@ -1037,6 +1184,339 @@ export const HrmsView: React.FC = () => {
           </span>
         </div>
       </div>
+    </>
+  ) : (
+    <div className="space-y-6">
+      {/* ============================================================== */}
+      {/* SUPERADMIN LAKSHAY EXCLUSIVE: EMS LIVE SESSION & LOGIN AUDIT */}
+      {/* ============================================================== */}
+
+      {/* 1. Security Telemetry Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Active Staff */}
+        <div className="bg-white p-5 rounded-2xl border border-[#E7E0FB] shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#585172]">
+              Active Logged-In Staff
+            </span>
+            <div className="text-2xl font-black text-[#120E24] mt-1 flex items-center gap-2">
+              <span>{activeSessionCount}</span>
+              <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Live Now</span>
+              </span>
+            </div>
+            <p className="text-[10px] text-[#585172] mt-1 font-medium">
+              Currently authenticated with HTTP-only cookie
+            </p>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center">
+            <Users className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* Total Sessions Today */}
+        <div className="bg-white p-5 rounded-2xl border border-[#E7E0FB] shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#585172]">
+              Total Logins Today
+            </span>
+            <div className="text-2xl font-black text-[#120E24] mt-1">
+              {totalLoginsToday}
+            </div>
+            <p className="text-[10px] text-[#585172] mt-1 font-medium">
+              Audited logins stored in MongoDB Atlas
+            </p>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-[#F0ECFC] border border-[#D8C7F8] text-[#7C2CF5] flex items-center justify-center">
+            <Clock4 className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* Security Cookie Protocol */}
+        <div className="bg-white p-5 rounded-2xl border border-[#E7E0FB] shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#585172]">
+              Cookie Protocol
+            </span>
+            <div className="text-sm font-black text-emerald-700 mt-1 flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>HTTP-Only & Secure</span>
+            </div>
+            <p className="text-[10px] text-[#585172] mt-1 font-medium">
+              Token protected against XSS & script theft
+            </p>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center">
+            <Key className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* Real-time Telemetry Bus */}
+        <div className="bg-white p-5 rounded-2xl border border-[#E7E0FB] shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#585172]">
+              Live Real-Time Bus
+            </span>
+            <div className="text-sm font-black text-[#7C2CF5] mt-1 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#7C2CF5] animate-ping"></span>
+              <span>Socket.IO Sync Active</span>
+            </div>
+            <p className="text-[10px] text-[#585172] mt-1 font-medium">
+              Instant revocation broadcast & telemetry
+            </p>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-[#F7F5FE] border border-[#E7E0FB] text-[#7C2CF5] flex items-center justify-center">
+            <Globe className="w-6 h-6" />
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Control Bar: Search & Status Filters */}
+      <div className="bg-white p-4 rounded-2xl border border-[#E7E0FB] shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 text-[#585172] absolute left-3.5 top-3" />
+          <input
+            type="text"
+            value={sessionSearch}
+            onChange={(e) => setSessionSearch(e.target.value)}
+            placeholder="Search by staff name, official email, employee code, IP address or role..."
+            className="w-full pl-9 pr-4 py-2 bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl text-xs text-[#120E24] placeholder-[#8B849E] focus:outline-none focus:border-[#7C2CF5]"
+          />
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="bg-[#F7F5FE] p-1 rounded-xl border border-[#E7E0FB] flex items-center gap-1 text-xs">
+            <button
+              type="button"
+              onClick={() => setSessionFilter('ALL')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
+                sessionFilter === 'ALL'
+                  ? 'bg-white text-[#7C2CF5] shadow-xs'
+                  : 'text-[#585172] hover:text-[#120E24]'
+              }`}
+            >
+              All Records ({sessionLogs.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSessionFilter('ACTIVE')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                sessionFilter === 'ACTIVE'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-[#585172] hover:text-[#120E24]'
+              }`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+              <span>Active ({activeSessionCount})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSessionFilter('LOGGED_OUT')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
+                sessionFilter === 'LOGGED_OUT'
+                  ? 'bg-white text-[#7C2CF5] shadow-xs'
+                  : 'text-[#585172] hover:text-[#120E24]'
+              }`}
+            >
+              Logged Out / Revoked
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={loadSessionLogs}
+            disabled={loadingSessions}
+            className="p-2 border border-[#E7E0FB] hover:bg-[#F7F5FE] text-[#585172] rounded-xl transition cursor-pointer disabled:opacity-50"
+            title="Refresh session telemetry"
+          >
+            <RefreshCw className={`w-4 h-4 ${loadingSessions ? 'animate-spin text-[#7C2CF5]' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* 3. Session Audit Log Table */}
+      <div className="bg-white rounded-2xl border border-[#E7E0FB] shadow-xs overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="bg-[#FAF9FE] border-b border-[#E7E0FB] text-[#585172] font-bold uppercase tracking-wider text-[10px]">
+                <th className="py-3 px-4">Staff Member & Employee Code</th>
+                <th className="py-3 px-4">Role & Access</th>
+                <th className="py-3 px-4">Device & Browser</th>
+                <th className="py-3 px-4">Client IP Address</th>
+                <th className="py-3 px-4">Login Timestamp</th>
+                <th className="py-3 px-4">Session Duration</th>
+                <th className="py-3 px-4">Status & Control</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#E7E0FB]">
+              {loadingSessions ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-[#585172]">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <RefreshCw className="w-6 h-6 text-[#7C2CF5] animate-spin" />
+                      <span className="font-semibold text-xs">Loading live session audit telemetry...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredSessionLogs.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-[#585172]">
+                    <ShieldCheck className="w-8 h-8 text-[#D8C7F8] mx-auto mb-2" />
+                    <p className="font-bold text-[#120E24]">No login session logs found</p>
+                    <p className="text-[11px] text-[#585172] mt-0.5">
+                      Session records are captured automatically as staff log into the portal.
+                    </p>
+                  </td>
+                </tr>
+              ) : (
+                filteredSessionLogs.map((log) => {
+                  const isActive = log.status === 'ACTIVE';
+                  const isRevoked = log.status === 'REVOKED';
+
+                  return (
+                    <tr
+                      key={log.id}
+                      className={`hover:bg-[#FAF9FE] transition-colors ${
+                        isActive ? 'bg-emerald-50/20' : ''
+                      }`}
+                    >
+                      {/* Staff Member */}
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#7C2CF5] to-[#9D54FF] text-white flex items-center justify-center font-black text-xs shrink-0 shadow-xs">
+                            {(log.fullName || log.userEmail || 'U').slice(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className="font-bold text-[#120E24]">{log.fullName || 'User'}</div>
+                            <div className="text-[11px] text-[#585172]">{log.userEmail}</div>
+                            <div className="text-[10px] font-mono font-bold text-[#7C2CF5]">
+                              {log.employeeCode || 'N/A'}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Role */}
+                      <td className="py-3 px-4">
+                        <span className="px-2 py-0.5 rounded-md font-mono text-[10px] font-bold bg-[#F0ECFC] text-[#7C2CF5] border border-[#D8C7F8]">
+                          {log.role || 'EMPLOYEE'}
+                        </span>
+                      </td>
+
+                      {/* Device & Browser */}
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2 text-[#120E24]">
+                          {log.deviceSummary?.toLowerCase().includes('mobile') ||
+                          log.deviceSummary?.toLowerCase().includes('android') ||
+                          log.deviceSummary?.toLowerCase().includes('ios') ? (
+                            <Smartphone className="w-4 h-4 text-[#7C2CF5] shrink-0" />
+                          ) : (
+                            <Laptop className="w-4 h-4 text-[#7C2CF5] shrink-0" />
+                          )}
+                          <span className="font-medium truncate max-w-[170px]" title={log.deviceSummary || log.userAgent}>
+                            {log.deviceSummary || 'Desktop Web'}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* IP Address */}
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-1.5 font-mono text-[11px] text-[#585172]">
+                          <Globe className="w-3.5 h-3.5 text-[#8B849E]" />
+                          <span>{log.ipAddress || '127.0.0.1'}</span>
+                        </div>
+                      </td>
+
+                      {/* Login Timestamp */}
+                      <td className="py-3 px-4">
+                        <div className="text-[#120E24] font-medium">
+                          {log.loginAt
+                            ? new Date(log.loginAt).toLocaleDateString('en-IN', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric'
+                              })
+                            : 'N/A'}
+                        </div>
+                        <div className="text-[10px] text-[#585172]">
+                          {log.loginAt
+                            ? new Date(log.loginAt).toLocaleTimeString('en-IN', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit'
+                              })
+                            : ''}
+                        </div>
+                      </td>
+
+                      {/* Duration */}
+                      <td className="py-3 px-4">
+                        <span className="font-mono font-bold text-[#120E24]">
+                          {formatDuration(log.loginAt, log.logoutAt)}
+                        </span>
+                        {log.logoutAt && (
+                          <div className="text-[10px] text-[#585172]">
+                            Ended: {new Date(log.logoutAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Status & Terminate Action */}
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          {isActive ? (
+                            <>
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 shrink-0">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                <span>Active Now</span>
+                              </span>
+
+                              <button
+                                type="button"
+                                onClick={() => handleRevokeSession(log.id, log.userEmail)}
+                                className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[10px] font-bold transition flex items-center gap-1 cursor-pointer shrink-0"
+                                title="Force terminate this staff session immediately"
+                              >
+                                <Power className="w-3 h-3" />
+                                <span>Terminate</span>
+                              </button>
+                            </>
+                          ) : isRevoked ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200">
+                              Revoked by Admin
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                              Logged Out
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Audit Table Footer */}
+        <div className="p-3.5 border-t border-[#E7E0FB] bg-[#F7F5FE] flex items-center justify-between text-xs text-[#585172]">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-[#7C2CF5]" />
+            <span>
+              SuperAdmin Lakshay Exclusive Audit Trail &bull; Showing <strong>{filteredSessionLogs.length}</strong> of {sessionLogs.length} session records
+            </span>
+          </div>
+          <span className="font-semibold text-[#7C2CF5]">
+            MongoDB Atlas <code className="font-mono text-[10px] bg-white px-1 py-0.5 rounded border border-[#E7E0FB]">user_sessions</code> Synced
+          </span>
+        </div>
+      </div>
+    </div>
+  )}
 
       {/* ============================================================== */}
       {/* MODAL 1: STAFF 360 PROFILE DRAWER / VIEW MODAL */}

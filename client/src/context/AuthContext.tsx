@@ -81,9 +81,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('codrix_token');
-    setSession(null);
+  const logout = async () => {
+    try {
+      await apiRequest('/auth/logout', { method: 'POST' });
+    } catch {
+      // safe fallback
+    } finally {
+      localStorage.removeItem('codrix_token');
+      setSession(null);
+    }
   };
 
   const hasRole = (...roles: RoleCode[]) => {

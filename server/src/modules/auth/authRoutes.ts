@@ -8,6 +8,36 @@ import { RoleCode } from '../../core/auth/types.js';
 
 const router = Router();
 
+// Device and client telemetry parser
+function parseDeviceSummary(ua: string): string {
+  if (!ua) return 'Web Browser';
+  let browser = 'Browser';
+  let os = 'Unknown OS';
+
+  if (ua.includes('Edg/')) browser = 'Microsoft Edge';
+  else if (ua.includes('Chrome/')) browser = 'Google Chrome';
+  else if (ua.includes('Safari/') && !ua.includes('Chrome')) browser = 'Apple Safari';
+  else if (ua.includes('Firefox/')) browser = 'Mozilla Firefox';
+
+  if (ua.includes('Windows')) os = 'Windows';
+  else if (ua.includes('Macintosh') || ua.includes('Mac OS')) os = 'macOS';
+  else if (ua.includes('iPhone')) os = 'iPhone (iOS)';
+  else if (ua.includes('iPad')) os = 'iPad (iPadOS)';
+  else if (ua.includes('Android')) os = 'Android';
+  else if (ua.includes('Linux')) os = 'Linux';
+
+  return `${browser} on ${os}`;
+}
+
+const isProd = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
+const cookieOptions: any = {
+  httpOnly: true,
+  secure: isProd,
+  sameSite: isProd ? 'none' : 'lax',
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+  path: '/'
+};
+
 // POST /api/v1/auth/login
 router.post('/login', async (req: Request, res: Response): Promise<void> => {
   try {
@@ -50,6 +80,32 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
       tenantId: activeMembership.tenantId,
       email: user.primaryEmail
     });
+
+    // Record login session with IP, device, and timestamps for EMS Superadmin telemetry
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() || req.socket.remoteAddress || '127.0.0.1';
+    const userAgent = req.headers['user-agent'] || 'Unknown Device';
+    const deviceSummary = parseDeviceSummary(userAgent);
+    const sessionId = new ObjectId().toString();
+
+    await cols.userSessions.insertOne({
+      sessionId,
+      userId,
+      tenantId: activeMembership.tenantId,
+      userEmail: user.primaryEmail,
+      fullName: user.fullName || 'Team Member',
+      role: activeMembership.roles[0] || 'EMPLOYEE',
+      employeeCode: employee?.employeeCode || 'N/A',
+      ipAddress: ip,
+      userAgent,
+      deviceSummary,
+      loginAt: new Date(),
+      logoutAt: null,
+      lastActiveAt: new Date(),
+      status: 'ACTIVE'
+    });
+
+    // Set secure HTTP-only session cookie
+    res.cookie('codrix_session_token', token, cookieOptions);
 
     await AuditService.log({
       tenantId: activeMembership.tenantId,
@@ -187,6 +243,31 @@ router.post('/switch-account', requireAuth, async (req: Request, res: Response):
       email: targetUser.primaryEmail
     });
 
+    // Record Founder account visit session
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() || req.socket.remoteAddress || '127.0.0.1';
+    const userAgent = req.headers['user-agent'] || 'Unknown Device';
+    const deviceSummary = parseDeviceSummary(userAgent);
+    const sessionId = new ObjectId().toString();
+
+    await cols.userSessions.insertOne({
+      sessionId,
+      userId,
+      tenantId: activeMembership.tenantId,
+      userEmail: targetUser.primaryEmail,
+      fullName: targetUser.fullName || 'Team Member',
+      role: activeMembership.roles[0] || 'EMPLOYEE',
+      employeeCode: employee?.employeeCode || 'N/A',
+      ipAddress: ip,
+      userAgent,
+      deviceSummary: `${deviceSummary} (Founder Visited)`,
+      loginAt: new Date(),
+      logoutAt: null,
+      lastActiveAt: new Date(),
+      status: 'ACTIVE'
+    });
+
+    res.cookie('codrix_session_token', token, cookieOptions);
+
     await AuditService.log({
       tenantId: activeMembership.tenantId,
       user: req.auth!.user,
@@ -221,6 +302,45 @@ router.post('/switch-account', requireAuth, async (req: Request, res: Response):
         ]
       }
     });
+  } catch (err: any) {
+    res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// POST /api/v1/auth/logout - Terminates active session and clears cookies
+router.post('/logout', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const cols = getCollections();
+    const userId = req.auth!.user.userId;
+    const now = new Date();
+
+    const activeSessions = await cols.userSessions.find({ userId, status: 'ACTIVE' }).toArray();
+    for (const s of activeSessions) {
+      const durationMs = s.loginAt ? (now.getTime() - new Date(s.loginAt).getTime()) : 0;
+      await cols.userSessions.updateOne(
+        { _id: s._id },
+        {
+          $set: {
+            logoutAt: now,
+            sessionDurationMs: durationMs,
+            status: 'LOGGED_OUT'
+          }
+        }
+      );
+    }
+
+    res.clearCookie('codrix_session_token', { path: '/' });
+    res.clearCookie('codrix_token', { path: '/' });
+
+    await AuditService.log({
+      tenantId: req.auth!.user.tenantId,
+      user: req.auth!.user,
+      action: 'AUTH_LOGOUT',
+      resourceType: 'SESSION',
+      resourceId: userId
+    });
+
+    res.json({ data: { success: true, message: 'Session logged out and cleared successfully' } });
   } catch (err: any) {
     res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
   }
