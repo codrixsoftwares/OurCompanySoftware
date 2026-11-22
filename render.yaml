@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: codrix-platform
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CLOUDINARY_CLOUD_NAME
+        value: gymcfo5j
+      - key: CLOUDINARY_API_KEY
+        value: "562398213255798"
+      - key: CLOUDINARY_API_SECRET
+        value: Tc3PqC0KnNq7UpxnvS4Ff4yZT2A
