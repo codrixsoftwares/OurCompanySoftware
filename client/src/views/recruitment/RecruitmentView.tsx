@@ -2346,7 +2346,7 @@ export const RecruitmentView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      navigator.clipboard.writeText(`CodRix Login Credentials:\nEmail: ${credResult.loginEmail}\nPassword: ${credResult.password}\nEmployee Code: ${credResult.employeeCode}\nRole: ${credResult.roleCode}\nPortal URL: http://localhost:5173`);
+                      navigator.clipboard.writeText(`CodRix Login Credentials:\nEmail: ${credResult.loginEmail}\nPassword: ${credResult.password}\nEmployee Code: ${credResult.employeeCode}\nRole: ${credResult.roleCode}\nPortal URL: https://connect.codrix.co.in`);
                       setCopiedCreds(true);
                       setTimeout(() => setCopiedCreds(false), 3000);
                     }}
@@ -2361,6 +2361,9 @@ export const RecruitmentView: React.FC = () => {
                   <div>Password: <strong className="font-bold font-mono">{credResult.password}</strong></div>
                   <div>Employee Code: <strong>{credResult.employeeCode}</strong></div>
                   <div>Assigned Role: <strong>{credResult.roleCode}</strong></div>
+                  <div className="col-span-2 pt-1 border-t border-emerald-200/60">
+                    Software Access URL: <a href="https://connect.codrix.co.in" target="_blank" rel="noreferrer" className="font-bold text-emerald-700 underline">https://connect.codrix.co.in</a>
+                  </div>
                 </div>
                 {credResult.emailDispatched && (
                   <div className="text-[10px] text-emerald-700 font-bold flex items-center gap-1 pt-1">

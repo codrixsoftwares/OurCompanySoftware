@@ -1272,7 +1272,7 @@ router.post('/candidates/:id/provision-credentials', requireAuth, async (req: Re
 
     if (sendEmail && candidate.emailNormalized) {
       try {
-        const portalUrl = 'http://localhost:5173';
+        const portalUrl = process.env.APP_URL || 'https://connect.codrix.co.in';
         const roleScopeDescription =
           roleCode === 'BDE'
             ? 'Record Management System: Create, manage, and log notes/calls for your assigned leads, client accounts, and pipeline records.'
@@ -1288,7 +1288,7 @@ router.post('/candidates/:id/provision-credentials', requireAuth, async (req: Re
           tenantId,
           to: candidate.emailNormalized,
           subject: `🎓 Welcome to CodRix — Your Official Portal Credentials & Role Access (${designation})`,
-          text: `Dear ${candidate.fullName},\n\nCongratulations on joining the CodRix team! Your official login credentials and system access have been provisioned.\n\nPortal Login URL: ${portalUrl}\nUsername / Login Email: ${emailToUse}\nTemporary Password: ${rawPassword}\nDesignation: ${designation}\nRole Access: ${roleCode}\nReporting Manager: ${reportingManagerName}\n\nAccess Scope: ${roleScopeDescription}\n\nPlease log in, review your dashboard, and keep these credentials secure.\n\nBest regards,\nPeople & Culture Team\nCodRix Private Limited`,
+          text: `Dear ${candidate.fullName},\n\nCongratulations on joining the CodRix team! Your official login credentials and system access have been provisioned.\n\nSoftware Access Login URL: ${portalUrl}\nUsername / Login Email: ${emailToUse}\nTemporary Password: ${rawPassword}\nDesignation: ${designation}\nRole Access: ${roleCode}\nReporting Manager: ${reportingManagerName}\n\nAccess Scope: ${roleScopeDescription}\n\nPlease log in at ${portalUrl}, review your dashboard, and keep these credentials secure.\n\nBest regards,\nPeople & Culture Team\nCodRix Private Limited`,
           html: `
             <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 620px; margin: auto; padding: 28px; border: 1px solid #E7E0FB; border-radius: 20px; background-color: #FBFBFE;">
               <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
@@ -1307,6 +1307,10 @@ router.post('/candidates/:id/provision-credentials', requireAuth, async (req: Re
               </div>
 
               <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px;">
+                <tr style="border-bottom: 1px solid #E7E0FB;">
+                  <td style="padding: 10px 0; color: #585172; font-weight: 600;">Software Access URL:</td>
+                  <td style="padding: 10px 0; color: #7C2CF5; font-weight: bold;"><a href="${portalUrl}" target="_blank" style="color: #7C2CF5; text-decoration: underline;">${portalUrl}</a></td>
+                </tr>
                 <tr style="border-bottom: 1px solid #E7E0FB;">
                   <td style="padding: 10px 0; color: #585172; font-weight: 600;">Employee Code:</td>
                   <td style="padding: 10px 0; color: #120E24; font-weight: bold; font-family: monospace;">${employeePayload.employeeCode}</td>
@@ -1339,14 +1343,14 @@ router.post('/candidates/:id/provision-credentials', requireAuth, async (req: Re
               </div>
 
               <div style="text-align: center; margin-bottom: 24px;">
-                <a href="${portalUrl}" style="background-color: #7C2CF5; color: white; padding: 12px 28px; border-radius: 12px; text-decoration: none; font-weight: bold; font-size: 14px; display: inline-block;">
+                <a href="${portalUrl}" target="_blank" style="background-color: #7C2CF5; color: white !important; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: bold; font-size: 14px; display: inline-block; box-shadow: 0 4px 15px rgba(124, 44, 245, 0.35);">
                   Log In to CodRix OS Portal &rarr;
                 </a>
               </div>
 
               <hr style="border: none; border-top: 1px solid #E7E0FB; margin: 20px 0;" />
               <p style="color: #585172; font-size: 11px; text-align: center; margin: 0;">
-                Provisioned by <strong>${req.auth!.user.fullName}</strong> (${req.auth!.user.roles[0]}) &bull; CodRix Private Limited &bull; https://codrix.co.in
+                Provisioned by <strong>${req.auth!.user.fullName}</strong> (${req.auth!.user.roles[0]}) &bull; CodRix Private Limited &bull; <a href="${portalUrl}" style="color: #7C2CF5; text-decoration: none;">connect.codrix.co.in</a>
               </p>
             </div>
           `
