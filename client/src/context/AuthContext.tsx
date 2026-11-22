@@ -5,7 +5,7 @@ import { apiRequest } from '../api/client.js';
 interface AuthContextType {
   session: AuthSession | null;
   loading: boolean;
-  login: (email: string, password?: string) => Promise<void>;
+  login: (email: string, password?: string, turnstileToken?: string) => Promise<void>;
   quickSwitchRole: (email: string) => Promise<void>;
   logout: () => void;
   hasRole: (...roles: RoleCode[]) => boolean;
@@ -40,12 +40,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
   }, []);
 
-  const login = async (email: string, password: string = 'Lakshay123') => {
+  const login = async (email: string, password: string = 'Lakshay123', turnstileToken?: string) => {
     setLoading(true);
     try {
       const data = await apiRequest<{ token: string } & AuthSession>('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password, turnstileToken })
       });
       localStorage.setItem('codrix_token', data.token);
       setSession(data);

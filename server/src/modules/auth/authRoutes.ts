@@ -41,10 +41,41 @@ const cookieOptions: any = {
 // POST /api/v1/auth/login
 router.post('/login', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, password } = req.body;
+    const { email, password, turnstileToken } = req.body;
     if (!email || !password) {
       res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Email and password are required' } });
       return;
+    }
+
+    // Optional Cloudflare Turnstile bot verification (if secret key is configured)
+    const turnstileSecret = process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY;
+    if (turnstileSecret) {
+      if (!turnstileToken) {
+        res.status(400).json({ error: { code: 'SECURITY_CHECK_REQUIRED', message: 'Cloudflare security verification required. Please complete the security check.' } });
+        return;
+      }
+
+      const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() || req.socket.remoteAddress || '';
+      try {
+        const verifyFormData = new URLSearchParams();
+        verifyFormData.append('secret', turnstileSecret);
+        verifyFormData.append('response', turnstileToken);
+        if (clientIp) verifyFormData.append('remoteip', clientIp);
+
+        const verifyRes = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+          method: 'POST',
+          body: verifyFormData
+        });
+        const verifyData: any = await verifyRes.json();
+
+        if (!verifyData.success) {
+          console.warn('[Cloudflare Turnstile] Security check rejected token:', verifyData['error-codes']);
+          res.status(403).json({ error: { code: 'SECURITY_CHECK_FAILED', message: 'Cloudflare security check failed. Please refresh and try again.' } });
+          return;
+        }
+      } catch (cfErr: any) {
+        console.error('[Cloudflare Turnstile] Error connecting to verification API:', cfErr);
+      }
     }
 
     const cols = getCollections();

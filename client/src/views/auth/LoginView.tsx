@@ -1,6 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext.js';
-import { Lock, Mail, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Lock, Mail, AlertCircle, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (container: string | HTMLElement, options: any) => string;
+      reset: (widgetId?: string) => void;
+      remove: (widgetId?: string) => void;
+    };
+  }
+}
 
 export const LoginView: React.FC = () => {
   const { login } = useAuth();
@@ -9,15 +19,85 @@ export const LoginView: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileContainerRef = useRef<HTMLDivElement>(null);
+  const widgetIdRef = useRef<string | null>(null);
+
+  const turnstileSiteKey = (import.meta as any).env?.VITE_CLOUDFLARE_TURNSTILE_SITE_KEY;
+
+  useEffect(() => {
+    if (!turnstileSiteKey) return;
+
+    // Dynamically load Cloudflare Turnstile script if not already loaded
+    const scriptId = 'cloudflare-turnstile-script';
+    let script = document.getElementById(scriptId) as HTMLScriptElement;
+
+    const renderWidget = () => {
+      if (window.turnstile && turnstileContainerRef.current && !widgetIdRef.current) {
+        try {
+          widgetIdRef.current = window.turnstile.render(turnstileContainerRef.current, {
+            sitekey: turnstileSiteKey,
+            theme: 'light',
+            callback: (token: string) => {
+              setTurnstileToken(token);
+              setError(null);
+            },
+            'expired-callback': () => {
+              setTurnstileToken(null);
+            },
+            'error-callback': () => {
+              console.warn('[Cloudflare Turnstile] Challenge error or blocked.');
+            }
+          });
+        } catch (e) {
+          console.error('[Cloudflare Turnstile] Render error:', e);
+        }
+      }
+    };
+
+    if (!script) {
+      script = document.createElement('script');
+      script.id = scriptId;
+      script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+      script.async = true;
+      script.defer = true;
+      script.onload = () => {
+        renderWidget();
+      };
+      document.body.appendChild(script);
+    } else if (window.turnstile) {
+      renderWidget();
+    }
+
+    return () => {
+      if (window.turnstile && widgetIdRef.current) {
+        try {
+          window.turnstile.remove(widgetIdRef.current);
+          widgetIdRef.current = null;
+        } catch {}
+      }
+    };
+  }, [turnstileSiteKey]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (turnstileSiteKey && !turnstileToken) {
+      setError('Please complete the Cloudflare security verification.');
+      return;
+    }
+
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email, password, turnstileToken || undefined);
     } catch (err: any) {
       setError(err.message || 'Login failed. Please verify credentials.');
+      // Reset Turnstile on failed login
+      if (window.turnstile && widgetIdRef.current) {
+        window.turnstile.reset(widgetIdRef.current);
+        setTurnstileToken(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -99,14 +179,36 @@ export const LoginView: React.FC = () => {
             </div>
           </div>
 
+          {/* Cloudflare Turnstile Smart Challenge (Rendered when site key is configured) */}
+          {turnstileSiteKey && (
+            <div className="flex flex-col items-center justify-center my-3">
+              <div ref={turnstileContainerRef} className="min-h-[65px] flex items-center justify-center" />
+              <div className="flex items-center gap-1.5 text-[10px] text-[#585172] mt-1.5 font-medium">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Protected by Cloudflare Turnstile Authentication</span>
+              </div>
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={loading}
-            className="w-full mt-2 py-3 px-4 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white font-bold text-xs rounded-xl shadow-lg shadow-[#7C2CF5]/30 hover:shadow-[#7C2CF5]/50 transition flex items-center justify-center gap-2"
+            className="w-full mt-2 py-3 px-4 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white font-bold text-xs rounded-xl shadow-lg shadow-[#7C2CF5]/30 hover:shadow-[#7C2CF5]/50 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
             {loading ? 'Authenticating...' : 'Sign In to Workspace'}
           </button>
         </form>
+
+        {/* Security Footer Badge */}
+        <div className="mt-6 pt-4 border-t border-[#E7E0FB] flex items-center justify-between text-[10px] text-[#585172]">
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span>Cloudflare Edge SSL Active</span>
+          </div>
+          <span className="font-semibold text-[#7C2CF5]">
+            connect.codrix.co.in
+          </span>
+        </div>
       </div>
     </div>
   );
