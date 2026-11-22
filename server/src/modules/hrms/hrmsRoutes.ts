@@ -6,6 +6,105 @@ import { requireAuth, requirePermission, requireLakshaySuperAdmin } from '../../
 import { AuditService } from '../../core/audit/auditService.js';
 import { RoleCode } from '../../core/auth/types.js';
 import { SocketService } from '../../core/socket/socketService.js';
+import { EmailDispatcher } from '../../core/email/emailDispatcher.js';
+
+// Helper function to dispatch stylized login credentials email
+async function sendCredentialsEmailNotification(params: {
+  tenantId: string;
+  recipientEmails: string[];
+  fullName: string;
+  loginEmail: string;
+  password?: string;
+  employeeCode?: string;
+  jobTitle?: string;
+  roleCode?: string;
+}) {
+  const { tenantId, recipientEmails, fullName, loginEmail, password, employeeCode, jobTitle, roleCode } = params;
+  const validRecipients = Array.from(new Set(recipientEmails.filter((e) => e && e.includes('@'))));
+  if (!validRecipients.length) return null;
+
+  const portalUrl = 'https://connect.codrix.co.in';
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F8F7FC; margin: 0; padding: 24px; color: #120E24; }
+    .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 20px; overflow: hidden; border: 1px solid #E7E0FB; box-shadow: 0 10px 25px rgba(124, 44, 245, 0.08); }
+    .header { background: linear-gradient(135deg, #7C2CF5 0%, #4F12B5 100%); padding: 32px 28px; text-align: center; color: #ffffff; }
+    .header h1 { margin: 0 0 8px 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px; }
+    .header p { margin: 0; font-size: 13px; opacity: 0.9; }
+    .content { padding: 32px 28px; }
+    .welcome-text { font-size: 15px; line-height: 1.6; color: #37324B; margin-bottom: 24px; }
+    .card { background: #FAF9FE; border: 1px solid #E7E0FB; border-radius: 14px; padding: 20px; margin-bottom: 24px; }
+    .card-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #7C2CF5; margin-bottom: 12px; }
+    .row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; }
+    .row:last-child { margin-bottom: 0; }
+    .label { color: #585172; font-weight: 500; }
+    .val { color: #120E24; font-weight: 700; }
+    .cred-box { background: #120E24; color: #ffffff; border-radius: 14px; padding: 20px; margin: 24px 0; text-align: center; }
+    .cred-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #9C8EF7; margin-bottom: 8px; }
+    .cred-value { font-family: monospace; font-size: 20px; font-weight: bold; letter-spacing: 2px; color: #22C55E; background: rgba(255,255,255,0.08); padding: 8px 16px; border-radius: 8px; display: inline-block; }
+    .btn-container { text-align: center; margin: 28px 0; }
+    .btn { background: #7C2CF5; color: #ffffff !important; text-decoration: none; padding: 14px 32px; border-radius: 12px; font-weight: 700; font-size: 14px; display: inline-block; box-shadow: 0 4px 15px rgba(124, 44, 245, 0.35); }
+    .footer { text-align: center; padding: 20px 28px; background: #FAF9FE; border-top: 1px solid #E7E0FB; font-size: 11px; color: #7D7595; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>CodRix Enterprise OS</h1>
+      <p>Official Platform Access Credentials</p>
+    </div>
+    <div class="content">
+      <p class="welcome-text">
+        Hello <strong>${fullName}</strong>,<br><br>
+        Your login credentials and account access for the <strong>CodRix Enterprise OS</strong> platform have been updated by Founder & Superadmin <strong>Lakshay</strong>.
+      </p>
+
+      <div class="card">
+        <div class="card-title">Employee & Role Profile</div>
+        <div class="row"><span class="label">Staff Member:</span><span class="val">${fullName}</span></div>
+        ${employeeCode ? `<div class="row"><span class="label">Employee ID:</span><span class="val">${employeeCode}</span></div>` : ''}
+        ${jobTitle ? `<div class="row"><span class="label">Designation:</span><span class="val">${jobTitle}</span></div>` : ''}
+        ${roleCode ? `<div class="row"><span class="label">System Role Access:</span><span class="val">${roleCode}</span></div>` : ''}
+        <div class="row"><span class="label">Official Login ID:</span><span class="val">${loginEmail}</span></div>
+      </div>
+
+      ${password ? `
+      <div class="cred-box">
+        <div class="cred-title">Your Portal Login Password</div>
+        <div class="cred-value">${password}</div>
+        <div style="font-size: 11px; color: #9C8EF7; margin-top: 10px;">Please login and update your password if desired.</div>
+      </div>
+      ` : ''}
+
+      <div class="btn-container">
+        <a href="${portalUrl}" class="btn" target="_blank">Access CodRix Enterprise OS</a>
+      </div>
+
+      <p style="font-size: 12px; color: #585172; line-height: 1.5;">
+        <strong>Security Notice:</strong> Keep these credentials confidential. If you did not request this update or experience any difficulty logging in, contact <strong>lakshay@codrix.co.in</strong> immediately.
+      </p>
+    </div>
+    <div class="footer">
+      CodRix Private Limited • connect.codrix.co.in • Confidential Enterprise Transmission
+    </div>
+  </div>
+</body>
+</html>
+  `;
+
+  return await EmailDispatcher.send({
+    tenantId,
+    to: validRecipients,
+    subject: `🔐 CodRix Enterprise OS — Your Login Credentials [${fullName}]`,
+    html,
+    text: `Hello ${fullName},\n\nYour CodRix Enterprise OS login credentials have been updated.\nPortal URL: ${portalUrl}\nOfficial Login ID: ${loginEmail}\n${password ? `Password: ${password}\n` : ''}\nPlease login to continue.\n\nCodRix Private Limited`
+  });
+}
 
 const router = Router();
 
@@ -64,18 +163,8 @@ router.get('/employees', requireAuth, async (req: Request, res: Response) => {
           : roleCode === 'BRANCH_MANAGER' || roleCode === 'OPS_MANAGER'
           ? 'Operations & Governance'
           : 'General Operations');
-      const shift = e.shift || 'Hybrid Shift • IST';
-      const salary =
-        e.salary ||
-        (roleCode === 'COMPANY_ADMIN'
-          ? '₹36,00,000 / yr'
-          : roleCode === 'GROWTH_OFFICER' || roleCode === 'ENGINEERING_LEAD'
-          ? '₹24,00,000 / yr'
-          : roleCode === 'HR_MANAGER' || roleCode === 'BDM' || roleCode === 'SDE2'
-          ? '₹18,00,000 / yr'
-          : roleCode === 'SDE1' || roleCode === 'BDE'
-          ? '₹9,50,000 / yr'
-          : '₹6,00,000 / yr');
+      const shift = e.shift || '';
+      const salary = e.salary || '';
 
       return {
         ...e,
@@ -87,7 +176,7 @@ router.get('/employees', requireAuth, async (req: Request, res: Response) => {
         roleCode,
         shift,
         salary,
-        reportingManagerName: e.reportingManagerName || 'Lakshay (Founder & MD)',
+        reportingManagerName: e.reportingManagerName || '',
         todayAttendance: att
           ? {
               status: att.status || 'PRESENT',
@@ -236,9 +325,9 @@ router.post('/employees', requireAuth, requireLakshaySuperAdmin, async (req: Req
       jobTitle: jobTitle?.trim() || 'Team Member',
       department: department?.trim() || 'General Operations',
       roleCode: roleCode || 'EMPLOYEE',
-      reportingManagerName: reportingManagerName?.trim() || 'Lakshay (Founder & MD)',
-      salary: salary?.trim() || '₹8,50,000 / yr',
-      shift: shift?.trim() || 'Hybrid Shift • IST',
+      reportingManagerName: reportingManagerName?.trim() || '',
+      salary: salary?.trim() || '',
+      shift: shift?.trim() || '',
       employmentStatus: employmentStatus || 'ACTIVE',
       joinedOn: new Date(),
       createdAt: new Date(),
@@ -300,7 +389,8 @@ router.put('/employees/:id', requireAuth, requireLakshaySuperAdmin, async (req: 
       salary,
       shift,
       employmentStatus,
-      password
+      password,
+      sendCredentialsEmail
     } = req.body;
 
     const cols = getCollections();
@@ -361,12 +451,40 @@ router.put('/employees/:id', requireAuth, requireLakshaySuperAdmin, async (req: 
       }
     }
 
+    // Optional dispatch of updated credentials email to staff member
+    let emailDispatchResult: any = null;
+    if (sendCredentialsEmail) {
+      const recipientEmails = [
+        email || existingEmp.email,
+        personalEmail !== undefined ? personalEmail : existingEmp.personalEmail
+      ].filter(Boolean);
+
+      try {
+        emailDispatchResult = await sendCredentialsEmailNotification({
+          tenantId,
+          recipientEmails,
+          fullName: fullName || existingEmp.fullName,
+          loginEmail: email || existingEmp.email,
+          password: password && password.trim() ? password.trim() : undefined,
+          employeeCode: employeeCode || existingEmp.employeeCode,
+          jobTitle: jobTitle || existingEmp.jobTitle,
+          roleCode: roleCode || existingEmp.roleCode
+        });
+      } catch (err: any) {
+        console.error('Email dispatch error on staff update:', err);
+      }
+    }
+
     await AuditService.log({
       user: req.auth!.user,
       action: 'EMPLOYEE_UPDATE',
       resourceType: 'EMPLOYEE',
       resourceId: existingEmp._id.toString(),
-      details: { employeeCode: existingEmp.employeeCode, updatedFields: Object.keys(updateFields) }
+      details: {
+        employeeCode: existingEmp.employeeCode,
+        updatedFields: Object.keys(updateFields),
+        emailDispatched: Boolean(emailDispatchResult?.success)
+      }
     });
 
     const updatedEmp = await cols.employees.findOne({ _id: existingEmp._id });
@@ -374,7 +492,90 @@ router.put('/employees/:id', requireAuth, requireLakshaySuperAdmin, async (req: 
 
     SocketService.emitToTenant(tenantId, 'hrms:employee_updated', { employee: resultData });
 
-    res.json({ data: resultData });
+    res.json({
+      data: resultData,
+      emailDispatched: Boolean(emailDispatchResult?.success),
+      emailDeliveryMethod: emailDispatchResult?.deliveryMethod
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// POST /api/v1/hrms/employees/:id/dispatch-credentials (Founder Lakshay Dispatches Login Credentials to Staff Email)
+router.post('/employees/:id/dispatch-credentials', requireAuth, requireLakshaySuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const employeeId = req.params.id;
+    const { password } = req.body;
+    const cols = getCollections();
+    const tenantId = req.auth!.user.tenantId;
+
+    let query: any = { tenantId };
+    try {
+      query._id = new ObjectId(employeeId);
+    } catch {
+      query.employeeCode = employeeId;
+    }
+
+    const emp = await cols.employees.findOne(query);
+    if (!emp) {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Staff member not found.' } });
+      return;
+    }
+
+    // If a new password is provided, immediately hash and sync it to the linked user account
+    if (password && password.trim() && emp.userId) {
+      const passwordHash = await bcrypt.hash(password.trim(), 10);
+      try {
+        await cols.users.updateOne(
+          { _id: new ObjectId(emp.userId) },
+          { $set: { passwordHash, updatedAt: new Date() } }
+        );
+      } catch {}
+    }
+
+    const recipientEmails = [emp.email, emp.personalEmail].filter(Boolean);
+    if (!recipientEmails.length) {
+      res.status(400).json({
+        error: {
+          code: 'BAD_REQUEST',
+          message: 'No official or personal email address found for this staff member.'
+        }
+      });
+      return;
+    }
+
+    const dispatchRes = await sendCredentialsEmailNotification({
+      tenantId,
+      recipientEmails,
+      fullName: emp.fullName,
+      loginEmail: emp.email,
+      password: password && password.trim() ? password.trim() : undefined,
+      employeeCode: emp.employeeCode,
+      jobTitle: emp.jobTitle,
+      roleCode: emp.roleCode
+    });
+
+    await AuditService.log({
+      user: req.auth!.user,
+      action: 'DISPATCH_CREDENTIALS',
+      resourceType: 'EMPLOYEE',
+      resourceId: emp._id.toString(),
+      details: {
+        employeeCode: emp.employeeCode,
+        fullName: emp.fullName,
+        recipientEmails,
+        deliveryMethod: dispatchRes?.deliveryMethod
+      }
+    });
+
+    res.json({
+      success: true,
+      message: `Login credentials dispatched successfully to ${recipientEmails.join(' & ')}`,
+      recipients: recipientEmails,
+      deliveryMethod: dispatchRes?.deliveryMethod,
+      info: dispatchRes?.info
+    });
   } catch (err: any) {
     res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
   }

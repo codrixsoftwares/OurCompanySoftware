@@ -29,7 +29,10 @@ import {
   Key,
   Layers,
   MapPin,
-  Clock4
+  Clock4,
+  Send,
+  EyeOff,
+  RefreshCw
 } from 'lucide-react';
 
 export const HrmsView: React.FC = () => {
@@ -68,11 +71,11 @@ export const HrmsView: React.FC = () => {
   const [addDepartment, setAddDepartment] = useState('Engineering & Tech');
   const [addRoleCode, setAddRoleCode] = useState('SDE1');
   const [addEmpCode, setAddEmpCode] = useState('');
-  const [addManager, setAddManager] = useState('Lakshay (Founder & MD)');
-  const [addSalary, setAddSalary] = useState('₹10,50,000 / yr');
-  const [addShift, setAddShift] = useState('Hybrid Shift • IST');
+  const [addManager, setAddManager] = useState('');
+  const [addSalary, setAddSalary] = useState('');
+  const [addShift, setAddShift] = useState('');
   const [addStatus, setAddStatus] = useState('ACTIVE');
-  const [addPassword, setAddPassword] = useState('Codrix@2026');
+  const [addPassword, setAddPassword] = useState('');
   const [isSubmittingAdd, setIsSubmittingAdd] = useState(false);
 
   // Edit Staff Member Form State
@@ -89,6 +92,10 @@ export const HrmsView: React.FC = () => {
   const [editShift, setEditShift] = useState('');
   const [editStatus, setEditStatus] = useState('ACTIVE');
   const [editPassword, setEditPassword] = useState('');
+  const [editSendEmail, setEditSendEmail] = useState(true);
+  const [showEditPassword, setShowEditPassword] = useState(false);
+  const [isDispatchingCreds, setIsDispatchingCreds] = useState(false);
+  const [credDispatchStatus, setCredDispatchStatus] = useState<string | null>(null);
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
 
   const loadData = async () => {
@@ -271,11 +278,14 @@ export const HrmsView: React.FC = () => {
     setEditDepartment(emp.department || 'Engineering & Tech');
     setEditRoleCode(emp.roleCode || emp.membership?.roles?.[0] || 'EMPLOYEE');
     setEditEmpCode(emp.employeeCode || '');
-    setEditManager(emp.reportingManagerName || 'Lakshay (Founder & MD)');
-    setEditSalary(emp.salary || '₹10,00,000 / yr');
-    setEditShift(emp.shift || 'Hybrid Shift • IST');
+    setEditManager(emp.reportingManagerName || '');
+    setEditSalary(emp.salary || '');
+    setEditShift(emp.shift || '');
     setEditStatus(emp.employmentStatus || 'ACTIVE');
     setEditPassword('');
+    setEditSendEmail(true);
+    setShowEditPassword(false);
+    setCredDispatchStatus(null);
   };
 
   // Create Staff Submission
@@ -302,7 +312,7 @@ export const HrmsView: React.FC = () => {
           salary: addSalary.trim(),
           shift: addShift.trim(),
           employmentStatus: addStatus,
-          password: addPassword.trim() || 'Codrix@2026'
+          password: addPassword.trim() || undefined
         })
       });
       setAddStaffModalOpen(false);
@@ -313,6 +323,9 @@ export const HrmsView: React.FC = () => {
       setAddPhone('');
       setAddJobTitle('');
       setAddEmpCode('');
+      setAddManager('');
+      setAddSalary('');
+      setAddShift('');
       loadData();
     } catch (err: any) {
       alert(err.message || 'Error creating staff profile');
@@ -342,7 +355,8 @@ export const HrmsView: React.FC = () => {
           salary: editSalary.trim(),
           shift: editShift.trim(),
           employmentStatus: editStatus,
-          password: editPassword.trim() || undefined
+          password: editPassword.trim() || undefined,
+          sendCredentialsEmail: editSendEmail && isLakshay
         })
       });
       setEditingEmployee(null);
@@ -350,11 +364,50 @@ export const HrmsView: React.FC = () => {
         setStaff360Employee(res.data);
       }
       loadData();
+      if (res.emailDispatched) {
+        alert('Staff profile updated and login credentials successfully sent to employee email!');
+      }
     } catch (err: any) {
       alert(err.message || 'Error updating staff profile');
     } finally {
       setIsSubmittingEdit(false);
     }
+  };
+
+  // Direct dispatch credentials now via Superadmin action
+  const handleDispatchCredentialsNow = async () => {
+    if (!editingEmployee) return;
+    if (!editEmail.trim() && !editPersonalEmail.trim()) {
+      alert('Please provide an official or personal email address to dispatch credentials.');
+      return;
+    }
+    setIsDispatchingCreds(true);
+    setCredDispatchStatus(null);
+    try {
+      const res: any = await apiRequest(`/hrms/employees/${editingEmployee.id}/dispatch-credentials`, {
+        method: 'POST',
+        body: JSON.stringify({
+          password: editPassword.trim() || undefined
+        })
+      });
+      setCredDispatchStatus(res.message || 'Credentials successfully dispatched!');
+      alert(res.message || 'Login credentials sent to employee via email!');
+    } catch (err: any) {
+      alert(err.message || 'Failed to dispatch credentials email.');
+      setCredDispatchStatus(`Error: ${err.message}`);
+    } finally {
+      setIsDispatchingCreds(false);
+    }
+  };
+
+  const generateStrongPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
+    let pwd = 'CodRix@';
+    for (let i = 0; i < 6; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setEditPassword(pwd);
+    setShowEditPassword(true);
   };
 
   // Filtered staff list
@@ -755,16 +808,16 @@ export const HrmsView: React.FC = () => {
                       <td className="py-3 px-4">
                         <div className="font-semibold text-[#120E24] text-[11px] flex items-center gap-1">
                           <Clock4 className="w-3 h-3 text-[#7C2CF5]" />
-                          <span>{emp.shift || 'Hybrid Shift • IST'}</span>
+                          <span>{emp.shift || '—'}</span>
                         </div>
                         <div className="text-[10px] text-[#585172] mt-0.5">
-                          Mgr: {emp.reportingManagerName || 'Lakshay (Founder & MD)'}
+                          Mgr: {emp.reportingManagerName || '—'}
                         </div>
                       </td>
 
                       {/* Salary / Comp */}
                       <td className="py-3 px-4 font-mono font-bold text-[#120E24]">
-                        {emp.salary || '₹8,50,000 / yr'}
+                        {emp.salary || '—'}
                       </td>
 
                       {/* Today Attendance */}
@@ -944,12 +997,12 @@ export const HrmsView: React.FC = () => {
                   </div>
                   <div>
                     <span className="text-[#585172] font-semibold block text-[11px]">Reporting Manager</span>
-                    <span className="font-medium text-[#120E24]">{staff360Employee.reportingManagerName || 'Lakshay (Founder & MD)'}</span>
+                    <span className="font-medium text-[#120E24]">{staff360Employee.reportingManagerName || '—'}</span>
                   </div>
                   <div>
                     <span className="text-[#585172] font-semibold block text-[11px]">Date of Joining</span>
                     <span className="font-medium text-[#120E24]">
-                      {staff360Employee.joinedOn ? new Date(staff360Employee.joinedOn).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'Nov 2026'}
+                      {staff360Employee.joinedOn ? new Date(staff360Employee.joinedOn).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}
                     </span>
                   </div>
                 </div>
@@ -964,11 +1017,11 @@ export const HrmsView: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <span className="text-[#585172] font-semibold block text-[11px]">Assigned Shift & Timezone</span>
-                    <span className="font-bold text-[#120E24]">{staff360Employee.shift || 'Hybrid Shift • IST'}</span>
+                    <span className="font-bold text-[#120E24]">{staff360Employee.shift || '—'}</span>
                   </div>
                   <div>
                     <span className="text-[#585172] font-semibold block text-[11px]">Annual CTC / Compensation</span>
-                    <span className="font-mono font-extrabold text-emerald-700">{staff360Employee.salary || '₹8,50,000 / yr'}</span>
+                    <span className="font-mono font-extrabold text-emerald-700">{staff360Employee.salary || '—'}</span>
                   </div>
                   <div>
                     <span className="text-[#585172] font-semibold block text-[11px]">Today's Punch Status</span>
@@ -1146,7 +1199,7 @@ export const HrmsView: React.FC = () => {
                     type="text"
                     value={addManager}
                     onChange={(e) => setAddManager(e.target.value)}
-                    placeholder="Lakshay (Founder & MD)"
+                    placeholder="e.g. Lakshay (Founder & MD)"
                     className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3 py-2 text-[#120E24] focus:outline-none focus:border-[#7C2CF5]"
                   />
                 </div>
@@ -1156,7 +1209,7 @@ export const HrmsView: React.FC = () => {
                     type="text"
                     value={addSalary}
                     onChange={(e) => setAddSalary(e.target.value)}
-                    placeholder="₹12,00,000 / yr"
+                    placeholder="e.g. ₹12,00,000 / yr"
                     className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3 py-2 text-[#120E24] font-semibold focus:outline-none focus:border-[#7C2CF5]"
                   />
                 </div>
@@ -1166,7 +1219,7 @@ export const HrmsView: React.FC = () => {
                     type="text"
                     value={addShift}
                     onChange={(e) => setAddShift(e.target.value)}
-                    placeholder="Hybrid Shift • IST"
+                    placeholder="e.g. Hybrid Shift • IST"
                     className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3 py-2 text-[#120E24] focus:outline-none focus:border-[#7C2CF5]"
                   />
                 </div>
@@ -1192,7 +1245,7 @@ export const HrmsView: React.FC = () => {
                     type="text"
                     value={addPassword}
                     onChange={(e) => setAddPassword(e.target.value)}
-                    placeholder="Codrix@2026"
+                    placeholder="Enter initial portal password"
                     className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3 py-2 text-[#120E24] font-mono focus:outline-none focus:border-[#7C2CF5]"
                   />
                 </div>
@@ -1356,6 +1409,7 @@ export const HrmsView: React.FC = () => {
                     type="text"
                     value={editManager}
                     onChange={(e) => setEditManager(e.target.value)}
+                    placeholder="e.g. Lakshay (Founder & MD)"
                     className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3 py-2 text-[#120E24] focus:outline-none focus:border-[#7C2CF5]"
                   />
                 </div>
@@ -1365,6 +1419,7 @@ export const HrmsView: React.FC = () => {
                     type="text"
                     value={editSalary}
                     onChange={(e) => setEditSalary(e.target.value)}
+                    placeholder="e.g. ₹12,00,000 / yr"
                     className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3 py-2 text-[#120E24] font-semibold focus:outline-none focus:border-[#7C2CF5]"
                   />
                 </div>
@@ -1374,36 +1429,116 @@ export const HrmsView: React.FC = () => {
                     type="text"
                     value={editShift}
                     onChange={(e) => setEditShift(e.target.value)}
+                    placeholder="e.g. Hybrid Shift • IST"
                     className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3 py-2 text-[#120E24] focus:outline-none focus:border-[#7C2CF5]"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-[#120E24] mb-1">Employment Status</label>
-                  <select
-                    value={editStatus}
-                    onChange={(e) => setEditStatus(e.target.value)}
-                    className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3 py-2 text-[#120E24] font-semibold focus:outline-none focus:border-[#7C2CF5]"
-                  >
-                    <option value="ACTIVE">ACTIVE</option>
-                    <option value="PROBATION">PROBATION</option>
-                    <option value="NOTICE_PERIOD">NOTICE_PERIOD</option>
-                    <option value="INACTIVE">INACTIVE</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-bold text-[#120E24] mb-1">Reset Portal Password (Optional)</label>
-                  <input
-                    type="text"
-                    value={editPassword}
-                    onChange={(e) => setEditPassword(e.target.value)}
-                    placeholder="Leave blank to keep existing password"
-                    className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3 py-2 text-[#120E24] font-mono focus:outline-none focus:border-[#7C2CF5]"
-                  />
-                </div>
+              <div>
+                <label className="block font-bold text-[#120E24] mb-1">Employment Status</label>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value)}
+                  className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3 py-2 text-[#120E24] font-semibold focus:outline-none focus:border-[#7C2CF5]"
+                >
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="PROBATION">PROBATION</option>
+                  <option value="NOTICE_PERIOD">NOTICE_PERIOD</option>
+                  <option value="INACTIVE">INACTIVE</option>
+                </select>
               </div>
+
+              {/* SuperAdmin Credentials Management & Email Dispatch */}
+              {isLakshay ? (
+                <div className="bg-[#FAF9FE] p-4 rounded-2xl border border-[#D8C7F8] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-extrabold text-[#7C2CF5]">
+                      <Shield className="w-4 h-4 text-[#7C2CF5]" />
+                      <span>SuperAdmin Credential Management & Email Dispatch</span>
+                    </div>
+                    <span className="text-[10px] bg-[#EDE4FF] text-[#7C2CF5] font-bold px-2.5 py-0.5 rounded-full border border-[#D8C7F8]">
+                      Founder Lakshay Exclusive
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-[#120E24] mb-1">
+                      Reset / Set Portal Password
+                    </label>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type={showEditPassword ? 'text' : 'password'}
+                          value={editPassword}
+                          onChange={(e) => setEditPassword(e.target.value)}
+                          placeholder="Enter new portal password (or leave blank to keep existing)"
+                          className="w-full bg-white border border-[#E7E0FB] rounded-xl px-3 py-2 pr-10 text-[#120E24] font-mono focus:outline-none focus:border-[#7C2CF5]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowEditPassword(!showEditPassword)}
+                          className="absolute right-3 top-2.5 text-[#585172] hover:text-[#7C2CF5] cursor-pointer"
+                        >
+                          {showEditPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={generateStrongPassword}
+                        className="px-3 py-2 bg-[#EDE4FF] hover:bg-[#E2D4FD] text-[#7C2CF5] font-bold text-xs rounded-xl flex items-center gap-1 transition cursor-pointer shrink-0"
+                        title="Generate strong random password"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Generate</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Email dispatch controls */}
+                  <div className="pt-2 border-t border-[#E7E0FB] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={editSendEmail}
+                        onChange={(e) => setEditSendEmail(e.target.checked)}
+                        className="w-4 h-4 text-[#7C2CF5] rounded border-[#E7E0FB] focus:ring-[#7C2CF5]"
+                      />
+                      <span className="text-[11px] font-semibold text-[#120E24]">
+                        Send updated credentials to employee via email on save
+                      </span>
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={handleDispatchCredentialsNow}
+                      disabled={isDispatchingCreds}
+                      className="px-3 py-1.5 bg-[#120E24] hover:bg-[#251D42] text-white text-[11px] font-bold rounded-xl flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 shrink-0 shadow-sm"
+                      title="Send credentials email immediately to staff member"
+                    >
+                      <Send className="w-3 h-3 text-[#9C8EF7]" />
+                      <span>{isDispatchingCreds ? 'Sending Email...' : 'Send Credentials Email Now'}</span>
+                    </button>
+                  </div>
+
+                  {credDispatchStatus && (
+                    <div className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>{credDispatchStatus}</span>
+                    </div>
+                  )}
+
+                  <div className="text-[10px] text-[#585172]">
+                    Email Recipients: <span className="font-semibold text-[#120E24]">{editEmail || 'No official email'}</span>
+                    {editPersonalEmail ? <span> & <span className="font-semibold text-[#120E24]">{editPersonalEmail}</span></span> : ''}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-500 flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-slate-400" />
+                  <span>Credential modifications and email dispatches are strictly reserved for Superadmin (Lakshay).</span>
+                </div>
+              )}
 
               <div className="pt-3 border-t border-[#E7E0FB] flex justify-end gap-2">
                 <button
