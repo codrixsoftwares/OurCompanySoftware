@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 
 export const HrmsView: React.FC = () => {
-  const { hasRole, isLakshay } = useAuth();
+  const { hasRole, isLakshay, session } = useAuth();
   const [employees, setEmployees] = useState<any[]>([]);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [attendanceToday, setAttendanceToday] = useState<AttendanceRecord | null>(null);
@@ -126,28 +126,106 @@ export const HrmsView: React.FC = () => {
     const socket = getSocket();
     socket.emit('join_hrms');
 
-    const handleHrmsEvent = () => {
-      loadData();
+    // High-speed granular real-time socket listeners for 0ms multi-client synchronization
+    const onEmployeeUpdated = (payload: any) => {
+      if (!payload?.employee) return;
+      const updated = payload.employee;
+      setEmployees((prev) =>
+        prev.map((e) => (e.id === updated.id || e._id === updated.id ? { ...e, ...updated } : e))
+      );
+      setStaff360Employee((prev: any) =>
+        prev && (prev.id === updated.id || prev._id === updated.id) ? { ...prev, ...updated } : prev
+      );
     };
 
-    socket.on('hrms:attendance_punched', handleHrmsEvent);
-    socket.on('hrms:leave_applied', handleHrmsEvent);
-    socket.on('hrms:leave_approved', handleHrmsEvent);
-    socket.on('hrms:employee_created', handleHrmsEvent);
-    socket.on('hrms:employee_updated', handleHrmsEvent);
-    socket.on('hrms:employee_deleted', handleHrmsEvent);
-    socket.on('hrms:employees_batch_deleted', handleHrmsEvent);
-    socket.on('hrms:leave_deleted', handleHrmsEvent);
+    const onEmployeeCreated = (payload: any) => {
+      if (!payload?.employee) return;
+      const created = payload.employee;
+      setEmployees((prev) => {
+        if (prev.some((e) => e.id === created.id || e._id === created.id)) return prev;
+        return [created, ...prev];
+      });
+    };
+
+    const onEmployeeDeleted = (payload: any) => {
+      if (!payload?.employeeId) return;
+      setEmployees((prev) => prev.filter((e) => e.id !== payload.employeeId && e._id !== payload.employeeId));
+      setStaff360Employee((prev: any) => (prev?.id === payload.employeeId ? null : prev));
+      setSelectedEmployeeIds((prev) => prev.filter((id) => id !== payload.employeeId));
+    };
+
+    const onEmployeesBatchDeleted = (payload: any) => {
+      if (!payload?.employeeIds || !Array.isArray(payload.employeeIds)) return;
+      setEmployees((prev) =>
+        prev.filter((e) => !payload.employeeIds.includes(e.id) && !payload.employeeIds.includes(e._id))
+      );
+      setStaff360Employee((prev: any) => (payload.employeeIds.includes(prev?.id) ? null : prev));
+      setSelectedEmployeeIds((prev) => prev.filter((id) => !payload.employeeIds.includes(id)));
+    };
+
+    const onAttendancePunched = (payload: any) => {
+      if (!payload?.record) return;
+      const rec = payload.record;
+      // Update logged-in user attendance if it matches
+      setAttendanceToday((prev) => {
+        if (!prev) return rec;
+        return { ...prev, ...rec };
+      });
+      // Update employee row in table in 0ms
+      setEmployees((prev) =>
+        prev.map((e) => {
+          if (e.id === rec.employeeId || e._id === rec.employeeId) {
+            return {
+              ...e,
+              todayAttendance: {
+                status: rec.status,
+                checkInTime: rec.checkInTime,
+                checkOutTime: rec.checkOutTime
+              }
+            };
+          }
+          return e;
+        })
+      );
+    };
+
+    const onLeaveApplied = (payload: any) => {
+      if (!payload?.leave) return;
+      setLeaveRequests((prev) => [payload.leave, ...prev]);
+    };
+
+    const onLeaveApproved = (payload: any) => {
+      if (!payload?.requestId) return;
+      setLeaveRequests((prev) =>
+        prev.map((l) => (l.id === payload.requestId || l._id === payload.requestId ? { ...l, status: payload.status } : l))
+      );
+    };
+
+    const onLeaveDeleted = (payload: any) => {
+      if (!payload?.requestId) return;
+      setLeaveRequests((prev) =>
+        prev.filter((l) => l.id !== payload.requestId && l._id !== payload.requestId)
+      );
+    };
+
+    socket.on('hrms:attendance_punched', onAttendancePunched);
+    socket.on('hrms:leave_applied', onLeaveApplied);
+    socket.on('hrms:leave_approved', onLeaveApproved);
+    socket.on('hrms:employee_created', onEmployeeCreated);
+    socket.on('hrms:employee_updated', onEmployeeUpdated);
+    socket.on('hrms:employee_deleted', onEmployeeDeleted);
+    socket.on('hrms:employees_batch_deleted', onEmployeesBatchDeleted);
+    socket.on('hrms:leave_deleted', onLeaveDeleted);
 
     return () => {
-      socket.off('hrms:attendance_punched', handleHrmsEvent);
-      socket.off('hrms:leave_applied', handleHrmsEvent);
-      socket.off('hrms:leave_approved', handleHrmsEvent);
-      socket.off('hrms:employee_created', handleHrmsEvent);
-      socket.off('hrms:employee_updated', handleHrmsEvent);
-      socket.off('hrms:employee_deleted', handleHrmsEvent);
-      socket.off('hrms:employees_batch_deleted', handleHrmsEvent);
-      socket.off('hrms:leave_deleted', handleHrmsEvent);
+      socket.off('hrms:attendance_punched', onAttendancePunched);
+      socket.off('hrms:leave_applied', onLeaveApplied);
+      socket.off('hrms:leave_approved', onLeaveApproved);
+      socket.off('hrms:employee_created', onEmployeeCreated);
+      socket.off('hrms:employee_updated', onEmployeeUpdated);
+      socket.off('hrms:employee_deleted', onEmployeeDeleted);
+      socket.off('hrms:employees_batch_deleted', onEmployeesBatchDeleted);
+      socket.off('hrms:leave_deleted', onLeaveDeleted);
     };
   }, []);
 
@@ -164,106 +242,150 @@ export const HrmsView: React.FC = () => {
     setSelectedEmployeeIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
-  // Delete Handlers
+  // Delete Handlers with Optimistic Instant Execution
   const handleDeleteEmployee = async (id: string, name: string) => {
     if (!isLakshay) {
       alert('Security Violation: Only Lakshay (Founder & SuperAdmin) is authorized to delete staff records.');
       return;
     }
     if (!window.confirm(`Are you sure you want to permanently delete employee "${name}"? This action removes database records and linked credentials.`)) return;
+
+    // Optimistically remove from state in 0ms
+    setEmployees((prev) => prev.filter((x) => x.id !== id && x._id !== id));
+    setSelectedEmployeeIds((prev) => prev.filter((x) => x !== id));
+    if (staff360Employee?.id === id) setStaff360Employee(null);
+
     try {
       await apiRequest(`/hrms/employees/${id}`, { method: 'DELETE' });
-      setSelectedEmployeeIds((prev) => prev.filter((x) => x !== id));
-      if (staff360Employee?.id === id) setStaff360Employee(null);
-      loadData();
     } catch (err: any) {
       alert(err.message || 'Error deleting employee');
+      loadData(); // rollback
     }
   };
 
   const handleBatchDeleteEmployees = async () => {
     if (!isLakshay || selectedEmployeeIds.length === 0) return;
     if (!window.confirm(`Are you sure you want to permanently delete ${selectedEmployeeIds.length} selected employee profile(s)?`)) return;
+
+    const toDelete = [...selectedEmployeeIds];
+    // Optimistically remove from state in 0ms
+    setEmployees((prev) => prev.filter((e) => !toDelete.includes(e.id) && !toDelete.includes(e._id)));
+    setSelectedEmployeeIds([]);
+    if (staff360Employee && toDelete.includes(staff360Employee.id)) {
+      setStaff360Employee(null);
+    }
+
     try {
       await apiRequest('/hrms/employees/batch-delete', {
         method: 'POST',
-        body: JSON.stringify({ employeeIds: selectedEmployeeIds })
+        body: JSON.stringify({ employeeIds: toDelete })
       });
-      setSelectedEmployeeIds([]);
-      if (staff360Employee && selectedEmployeeIds.includes(staff360Employee.id)) {
-        setStaff360Employee(null);
-      }
-      loadData();
     } catch (err: any) {
       alert(err.message || 'Error deleting selected employees');
+      loadData(); // rollback
     }
   };
 
   const handleDeleteLeaveRequest = async (id: string) => {
     if (!isLakshay) return;
     if (!window.confirm('Are you sure you want to delete this leave request?')) return;
+
+    // Optimistic deletion in 0ms
+    setLeaveRequests((prev) => prev.filter((l) => l.id !== id && l._id !== id));
+
     try {
       await apiRequest(`/hrms/leave/requests/${id}`, { method: 'DELETE' });
-      loadData();
     } catch (err: any) {
       alert(err.message || 'Error deleting leave request');
+      loadData(); // rollback
     }
   };
 
-  // Clock in/out
+  // Clock in/out with Optimistic Immediate Execution
   const handleClockIn = async () => {
+    const nowIso = new Date().toISOString();
+    const isLate = new Date().getHours() > 10;
+    const optimisticAtt = {
+      status: isLate ? 'LATE' : 'PRESENT',
+      checkInTime: nowIso
+    };
+    // Optimistic instant state update in 0ms
+    setAttendanceToday(optimisticAtt as any);
+    const userEmail = (session?.user?.email || '').toLowerCase();
+    if (userEmail) {
+      setEmployees((prev) =>
+        prev.map((e) => {
+          if ((e.email || '').toLowerCase() === userEmail) {
+            return { ...e, todayAttendance: optimisticAtt };
+          }
+          return e;
+        })
+      );
+    }
+
     try {
       const rec = await apiRequest('/hrms/attendance/clock-in', { method: 'POST' });
       setAttendanceToday(rec);
-      loadData();
     } catch (err: any) {
       alert(err.message || 'Error clocking in');
+      loadData();
     }
   };
 
   const handleClockOut = async () => {
+    const nowIso = new Date().toISOString();
+    setAttendanceToday((prev) => (prev ? { ...prev, checkOutTime: nowIso } : null));
+
     try {
       const rec = await apiRequest('/hrms/attendance/clock-out', { method: 'POST' });
       setAttendanceToday(rec);
-      loadData();
     } catch (err: any) {
       alert(err.message || 'Error clocking out');
+      loadData();
     }
   };
 
-  // Leave Handlers
+  // Leave Handlers with Optimistic Updates
   const handleRequestLeave = async (e: React.FormEvent) => {
     e.preventDefault();
+    const newReqPayload = {
+      leaveTypeId: selectedLeaveTypeId,
+      startDate,
+      endDate,
+      daysCount: Number(daysCount),
+      reason: leaveReason
+    };
+    setLeaveModalOpen(false);
+    setLeaveReason('');
+    setStartDate('');
+    setEndDate('');
+
     try {
-      await apiRequest('/hrms/leave/requests', {
+      const res: any = await apiRequest('/hrms/leave/requests', {
         method: 'POST',
-        body: JSON.stringify({
-          leaveTypeId: selectedLeaveTypeId,
-          startDate,
-          endDate,
-          daysCount: Number(daysCount),
-          reason: leaveReason
-        })
+        body: JSON.stringify(newReqPayload)
       });
-      setLeaveModalOpen(false);
-      setLeaveReason('');
-      setStartDate('');
-      setEndDate('');
-      loadData();
+      if (res?.data) {
+        setLeaveRequests((prev) => [res.data, ...prev.filter((l) => l.id !== res.data.id)]);
+      }
     } catch (err: any) {
       alert(err.message || 'Error requesting leave');
+      loadData();
     }
   };
 
   const handleApproveLeave = async (requestId: string) => {
+    setLeaveRequests((prev) =>
+      prev.map((l) => (l.id === requestId || l._id === requestId ? { ...l, status: 'APPROVED' } : l))
+    );
     try {
       await apiRequest(`/hrms/leave/requests/${requestId}/approve`, {
         method: 'POST',
         body: JSON.stringify({ notes: 'Approved by authorized manager' })
       });
-      loadData();
     } catch (err: any) {
       alert(err.message || 'Approval error');
+      loadData();
     }
   };
 
@@ -297,7 +419,7 @@ export const HrmsView: React.FC = () => {
     }
     setIsSubmittingAdd(true);
     try {
-      await apiRequest('/hrms/employees', {
+      const res: any = await apiRequest('/hrms/employees', {
         method: 'POST',
         body: JSON.stringify({
           fullName: addFullName.trim(),
@@ -316,6 +438,9 @@ export const HrmsView: React.FC = () => {
         })
       });
       setAddStaffModalOpen(false);
+      if (res?.data) {
+        setEmployees((prev) => [res.data, ...prev.filter((e) => e.id !== res.data.id && e._id !== res.data.id)]);
+      }
       // Reset form
       setAddFullName('');
       setAddEmail('');
@@ -326,51 +451,64 @@ export const HrmsView: React.FC = () => {
       setAddManager('');
       setAddSalary('');
       setAddShift('');
-      loadData();
     } catch (err: any) {
       alert(err.message || 'Error creating staff profile');
+      loadData();
     } finally {
       setIsSubmittingAdd(false);
     }
   };
 
-  // Edit Staff Submission
+  // Edit Staff Submission with 0ms Optimistic UI
   const handleUpdateStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingEmployee) return;
-    setIsSubmittingEdit(true);
+
+    const targetId = editingEmployee.id;
+    const optimisticEmp = {
+      fullName: editFullName.trim(),
+      email: editEmail.trim(),
+      personalEmail: editPersonalEmail.trim(),
+      phone: editPhone.trim(),
+      jobTitle: editJobTitle.trim(),
+      department: editDepartment,
+      roleCode: editRoleCode,
+      employeeCode: editEmpCode.trim(),
+      reportingManagerName: editManager.trim(),
+      salary: editSalary.trim(),
+      shift: editShift.trim(),
+      employmentStatus: editStatus
+    };
+
+    // Instant local update (0ms response time)
+    setEmployees((prev) =>
+      prev.map((emp) => (emp.id === targetId || emp._id === targetId ? { ...emp, ...optimisticEmp } : emp))
+    );
+    if (staff360Employee?.id === targetId || staff360Employee?._id === targetId) {
+      setStaff360Employee((prev: any) => ({ ...prev, ...optimisticEmp }));
+    }
+
+    const newPassword = editPassword.trim();
+    const sendEmailFlag = editSendEmail && isLakshay;
+    setEditingEmployee(null); // Instantly close modal
+
     try {
-      const res: any = await apiRequest(`/hrms/employees/${editingEmployee.id}`, {
+      const res: any = await apiRequest(`/hrms/employees/${targetId}`, {
         method: 'PUT',
         body: JSON.stringify({
-          fullName: editFullName.trim(),
-          email: editEmail.trim(),
-          personalEmail: editPersonalEmail.trim(),
-          phone: editPhone.trim(),
-          jobTitle: editJobTitle.trim(),
-          department: editDepartment,
-          roleCode: editRoleCode,
-          employeeCode: editEmpCode.trim(),
-          reportingManagerName: editManager.trim(),
-          salary: editSalary.trim(),
-          shift: editShift.trim(),
-          employmentStatus: editStatus,
-          password: editPassword.trim() || undefined,
-          sendCredentialsEmail: editSendEmail && isLakshay
+          ...optimisticEmp,
+          password: newPassword || undefined,
+          sendCredentialsEmail: sendEmailFlag
         })
       });
-      setEditingEmployee(null);
-      if (staff360Employee?.id === editingEmployee.id) {
-        setStaff360Employee(res.data);
-      }
-      loadData();
-      if (res.emailDispatched) {
-        alert('Staff profile updated and login credentials successfully sent to employee email!');
+      if (res?.data) {
+        setEmployees((prev) =>
+          prev.map((emp) => (emp.id === targetId || emp._id === targetId ? { ...emp, ...res.data } : emp))
+        );
       }
     } catch (err: any) {
       alert(err.message || 'Error updating staff profile');
-    } finally {
-      setIsSubmittingEdit(false);
+      loadData(); // rollback
     }
   };
 

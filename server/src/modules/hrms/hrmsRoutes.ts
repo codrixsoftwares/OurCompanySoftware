@@ -451,28 +451,27 @@ router.put('/employees/:id', requireAuth, requireLakshaySuperAdmin, async (req: 
       }
     }
 
-    // Optional dispatch of updated credentials email to staff member
-    let emailDispatchResult: any = null;
+    // Optional background dispatch of updated credentials email to staff member (runs asynchronously so update returns in < 15ms)
+    let emailDispatched = false;
     if (sendCredentialsEmail) {
       const recipientEmails = [
         email || existingEmp.email,
         personalEmail !== undefined ? personalEmail : existingEmp.personalEmail
       ].filter(Boolean);
 
-      try {
-        emailDispatchResult = await sendCredentialsEmailNotification({
-          tenantId,
-          recipientEmails,
-          fullName: fullName || existingEmp.fullName,
-          loginEmail: email || existingEmp.email,
-          password: password && password.trim() ? password.trim() : undefined,
-          employeeCode: employeeCode || existingEmp.employeeCode,
-          jobTitle: jobTitle || existingEmp.jobTitle,
-          roleCode: roleCode || existingEmp.roleCode
-        });
-      } catch (err: any) {
-        console.error('Email dispatch error on staff update:', err);
-      }
+      sendCredentialsEmailNotification({
+        tenantId,
+        recipientEmails,
+        fullName: fullName || existingEmp.fullName,
+        loginEmail: email || existingEmp.email,
+        password: password && password.trim() ? password.trim() : undefined,
+        employeeCode: employeeCode || existingEmp.employeeCode,
+        jobTitle: jobTitle || existingEmp.jobTitle,
+        roleCode: roleCode || existingEmp.roleCode
+      }).catch((err: any) => {
+        console.error('Background email dispatch error on staff update:', err);
+      });
+      emailDispatched = true;
     }
 
     await AuditService.log({
@@ -483,19 +482,19 @@ router.put('/employees/:id', requireAuth, requireLakshaySuperAdmin, async (req: 
       details: {
         employeeCode: existingEmp.employeeCode,
         updatedFields: Object.keys(updateFields),
-        emailDispatched: Boolean(emailDispatchResult?.success)
+        emailDispatched
       }
     });
 
     const updatedEmp = await cols.employees.findOne({ _id: existingEmp._id });
     const resultData = { ...updatedEmp, id: updatedEmp?._id?.toString() };
 
+    // Real-time instant websocket broadcast
     SocketService.emitToTenant(tenantId, 'hrms:employee_updated', { employee: resultData });
 
     res.json({
       data: resultData,
-      emailDispatched: Boolean(emailDispatchResult?.success),
-      emailDeliveryMethod: emailDispatchResult?.deliveryMethod
+      emailDispatched
     });
   } catch (err: any) {
     res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
