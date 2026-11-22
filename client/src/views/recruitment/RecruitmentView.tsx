@@ -494,17 +494,29 @@ export const RecruitmentView: React.FC = () => {
       return;
     }
     if (!confirm(`Are you sure you want to permanently delete candidate "${candidateName}"? This will delete all applications, notes, and recruitment records.`)) return;
+
+    // Snapshot for rollback
+    const prevStages = [...stages];
+
+    // 0ms Optimistic UI removal from stages
+    setStages((prev) =>
+      prev.map((s) => ({
+        ...s,
+        applications: s.applications.filter((a) => a.candidateId !== candidateId)
+      }))
+    );
+    if (selectedCandidateId === candidateId) {
+      setSelectedCandidateId(null);
+      setCandidateDetail(null);
+    }
+    setSelectedCandidateIds((prev) => prev.filter((id) => id !== candidateId));
+    showFeedback('success', `Candidate ${candidateName} has been deleted.`);
+
     try {
       await apiRequest(`/recruitment/candidates/${candidateId}`, { method: 'DELETE' });
-      showFeedback('success', `Candidate ${candidateName} has been deleted.`);
-      if (selectedCandidateId === candidateId) {
-        setSelectedCandidateId(null);
-        setCandidateDetail(null);
-      }
-      setSelectedCandidateIds((prev) => prev.filter((id) => id !== candidateId));
-      await loadPipeline();
     } catch (err: any) {
-      alert(err.message || 'Failed deleting candidate');
+      setStages(prevStages);
+      showFeedback('error', err.message || 'Failed deleting candidate');
     }
   };
 
@@ -730,57 +742,152 @@ export const RecruitmentView: React.FC = () => {
     }
   };
 
-  // Advance Candidate Stage (Triggers automated journey email!)
+  // Advance Candidate Stage (Instant 0ms Optimistic UI)
   const handleStageChange = async (applicationId: string, targetStageId: string) => {
+    const targetStage = stages.find((s) => s.id === targetStageId);
+    const targetStageName = targetStage?.name || 'New Stage';
+
+    // Snapshot previous state for rollback
+    const prevStages = [...stages];
+    const prevCandidateDetail = candidateDetail ? { ...candidateDetail } : null;
+
+    // 0ms Optimistic move across stages state
+    setStages((currentStages) => {
+      let movedApp: Application | null = null;
+      const strippedStages = currentStages.map((st) => {
+        const found = st.applications.find((a) => a.id === applicationId);
+        if (found) {
+          movedApp = { ...found, stageId: targetStageId };
+          return {
+            ...st,
+            applications: st.applications.filter((a) => a.id !== applicationId)
+          };
+        }
+        return st;
+      });
+
+      if (movedApp) {
+        return strippedStages.map((st) => {
+          if (st.id === targetStageId) {
+            return {
+              ...st,
+              applications: [movedApp!, ...st.applications]
+            };
+          }
+          return st;
+        });
+      }
+      return strippedStages;
+    });
+
+    // 0ms Optimistic update in open Candidate Drawer
+    if (candidateDetail && candidateDetail.application && candidateDetail.application.id === applicationId) {
+      setCandidateDetail({
+        ...candidateDetail,
+        application: {
+          ...candidateDetail.application,
+          stageId: targetStageId,
+          stageName: targetStageName
+        }
+      });
+    }
+
+    showFeedback('success', `Candidate moved to ${targetStageName}. Automated journey email dispatched!`);
+
     try {
-      const res: any = await apiRequest(`/recruitment/applications/${applicationId}/stage`, {
+      await apiRequest(`/recruitment/applications/${applicationId}/stage`, {
         method: 'PATCH',
         body: JSON.stringify({ stageId: targetStageId })
       });
-      showFeedback('success', `Candidate moved to ${res?.stageName || 'new stage'}. Automated journey email dispatched!`);
-      await loadPipeline();
-      if (selectedCandidateId) {
-        await handleOpenCandidate(selectedCandidateId);
-      }
     } catch (err: any) {
-      alert(err.message || 'Failed updating candidate stage');
+      // Rollback on network failure
+      setStages(prevStages);
+      if (prevCandidateDetail) setCandidateDetail(prevCandidateDetail);
+      showFeedback('error', err.message || 'Failed updating candidate stage');
     }
   };
 
-  // Create Candidate Intake
+  // Create Candidate Intake (Instant 0ms Optimistic UI)
   const handleCreateCandidate = async (e: React.FormEvent) => {
     e.preventDefault();
     setCandidateError(null);
-    if (!candidateName.trim()) {
+    const cleanName = candidateName.trim();
+    const cleanEmail = candidateEmail.trim();
+    const cleanPhone = candidatePhone.trim();
+
+    if (!cleanName) {
       setCandidateError('Candidate full name is required.');
       return;
     }
-    if (!candidateEmail.trim()) {
+    if (!cleanEmail) {
       setCandidateError('Candidate email address is required.');
       return;
     }
+
     const finalJobId = selectedJobId || (jobs.length > 0 ? jobs[0].id : '');
-    setCandidateSubmitting(true);
+    const matchedJob = jobs.find((j) => j.id === finalJobId);
+    const sourcedStage = stages.find((s) => s.stageOrder === 1) || stages[0];
+
+    // Optimistic temporary item
+    const tempId = `temp_${Date.now()}`;
+    const nextSerialNo = allApplications.length + 1;
+    const tempRequestNo = `REQ-${nextSerialNo.toString().padStart(4, '0')}`;
+
+    const optimisticApp: any = {
+      id: tempId,
+      candidateId: tempId,
+      serialNo: nextSerialNo,
+      requestNo: tempRequestNo,
+      jobOpeningId: finalJobId,
+      stageId: sourcedStage?.id || 'stage_sourced',
+      status: 'ACTIVE',
+      appliedAt: new Date().toISOString(),
+      candidate: {
+        id: tempId,
+        serialNo: nextSerialNo,
+        requestNo: tempRequestNo,
+        fullName: cleanName,
+        emailNormalized: cleanEmail,
+        phoneNormalized: cleanPhone,
+        source: 'CAREERS_PAGE',
+        notes: ''
+      },
+      jobOpening: matchedJob
+    };
+
+    // 0ms instant UI update & close modal immediately
+    setStages((prev) =>
+      prev.map((s) => {
+        if (s.id === (sourcedStage?.id || prev[0]?.id)) {
+          return {
+            ...s,
+            applications: [optimisticApp, ...s.applications]
+          };
+        }
+        return s;
+      })
+    );
+
+    setCandidateModalOpen(false);
+    setCandidateName('');
+    setCandidateEmail('');
+    setCandidatePhone('');
+    showFeedback('success', `Candidate ${cleanName} ingested into Sourced!`);
+
     try {
       await apiRequest('/recruitment/candidates', {
         method: 'POST',
         body: JSON.stringify({
-          fullName: candidateName.trim(),
-          email: candidateEmail.trim(),
-          phone: candidatePhone.trim(),
+          fullName: cleanName,
+          email: cleanEmail,
+          phone: cleanPhone,
           jobOpeningId: finalJobId
         })
       });
-      showFeedback('success', `Candidate ${candidateName.trim()} ingested into Sourced. Confirmation email dispatched!`);
-      setCandidateModalOpen(false);
-      setCandidateName('');
-      setCandidateEmail('');
-      setCandidatePhone('');
-      await loadPipeline();
+      loadPipeline();
     } catch (err: any) {
-      setCandidateError(err.message || 'Error creating candidate application.');
-    } finally {
-      setCandidateSubmitting(false);
+      showFeedback('error', err.message || 'Error creating candidate application.');
+      loadPipeline();
     }
   };
 

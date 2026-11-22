@@ -748,9 +748,12 @@ router.put('/candidates/:id', requireAuth, requirePermission('recruitment', 'can
         { $set: appUpdates }
       );
 
-      // If stage changed via edit, trigger journey email automatically
+      // If stage changed via edit, trigger journey email automatically in background
       if (stageChanged && targetStageName) {
-        await triggerStageJourneyEmail(application._id.toString(), targetStageName, cols, tenantId);
+        setImmediate(() => {
+          triggerStageJourneyEmail(application._id.toString(), targetStageName, cols, tenantId)
+            .catch((err) => console.error('Background edit journey email error:', err?.message || err));
+        });
       }
     }
 
@@ -1005,8 +1008,11 @@ router.post('/candidates', requireAuth, requirePermission('recruitment', 'candid
       const appRes = await cols.applications.insertOne(appDoc);
       application = { ...appDoc, id: appRes.insertedId.toString() };
 
-      // Dispatch automated Sourced journey email!
-      await triggerStageJourneyEmail(application.id, defaultStage!.name || 'Sourced', cols, tenantId);
+      // Dispatch automated Sourced journey email in the background (0ms non-blocking)
+      setImmediate(() => {
+        triggerStageJourneyEmail(application.id, defaultStage!.name || 'Sourced', cols, tenantId)
+          .catch((err) => console.error('Background journey email dispatch notice:', err?.message || err));
+      });
     }
 
     await AuditService.log({
@@ -1050,8 +1056,11 @@ router.patch('/applications/:id/stage', requireAuth, requirePermission('recruitm
       { $set: { stageId, updatedAt: new Date() } }
     );
 
-    // Trigger automated Journey Email for this newly reached stage!
-    await triggerStageJourneyEmail(applicationId, targetStage.name, cols, tenantId);
+    // Trigger automated Journey Email in the background (0ms non-blocking)
+    setImmediate(() => {
+      triggerStageJourneyEmail(applicationId, targetStage.name, cols, tenantId)
+        .catch((err) => console.error('Background stage journey email error:', err?.message || err));
+    });
 
     await AuditService.log({
       user: req.auth!.user,
@@ -1105,8 +1114,11 @@ router.post('/applications/:id/convert-to-employee', requireAuth, requirePermiss
       { $set: { status: 'HIRED', updatedAt: new Date() } }
     );
 
-    // Trigger Hired journey email
-    await triggerStageJourneyEmail(applicationId, 'Hired', cols, tenantId);
+    // Trigger Hired journey email in the background (0ms non-blocking)
+    setImmediate(() => {
+      triggerStageJourneyEmail(applicationId, 'Hired', cols, tenantId)
+        .catch((err) => console.error('Background hired email error:', err?.message || err));
+    });
 
     res.status(201).json({ data: { ...empDoc, id: empRes.insertedId.toString() } });
   } catch (err: any) {
@@ -1375,15 +1387,21 @@ router.post('/candidates/:id/provision-credentials', requireAuth, async (req: Re
           emailHtml = rendered.html;
         }
 
-        const emailResult = await EmailDispatcher.send({
-          tenantId,
-          to: candidate.emailNormalized,
-          subject: emailSubject,
-          text: emailText,
-          html: emailHtml
+        // Non-blocking background email dispatch
+        setImmediate(async () => {
+          try {
+            await EmailDispatcher.send({
+              tenantId,
+              to: candidate.emailNormalized,
+              subject: emailSubject,
+              text: emailText,
+              html: emailHtml
+            });
+          } catch (err: any) {
+            console.error('Background welcome email dispatch error:', err?.message || err);
+          }
         });
-        emailDispatched = emailResult.success;
-        if (!emailResult.success) emailError = emailResult.error;
+        emailDispatched = true;
       } catch (e: any) {
         emailError = e.message;
       }

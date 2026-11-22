@@ -51,7 +51,7 @@ export class EmailDispatcher {
         const port = Number(channelSmtp.port) || (channelSmtp.secure ? 465 : 587);
         const isSecure = Boolean(channelSmtp.secure || port === 465);
 
-        // Build transport with provider-optimized settings
+        // Build transport with provider-optimized settings and non-blocking fast timeouts
         const transportConfig: any = {
           host: channelSmtp.host,
           port,
@@ -60,6 +60,9 @@ export class EmailDispatcher {
             user: channelSmtp.username,
             pass: channelSmtp.password
           },
+          connectionTimeout: 4000,
+          greetingTimeout: 4000,
+          socketTimeout: 6000,
           tls: {
             rejectUnauthorized: false
           }

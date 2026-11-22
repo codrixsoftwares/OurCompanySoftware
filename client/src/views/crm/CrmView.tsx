@@ -330,38 +330,66 @@ export const CrmView: React.FC = () => {
 
   const handleCreateLead = async (e: React.FormEvent) => {
     e.preventDefault();
+    const tempId = `temp_${Date.now()}`;
+    const optimisticLead: any = {
+      id: tempId,
+      _id: tempId,
+      companyName,
+      contactName,
+      email,
+      phone,
+      serviceInterest,
+      priority,
+      clientNeeds,
+      codrixSolution,
+      proofLinks,
+      researchPoints,
+      assignedBdeEmail,
+      assignedBdeName,
+      assignedBdeId,
+      stage: 'IDENTIFIED',
+      score: 50,
+      createdAt: new Date().toISOString()
+    };
+
+    // 0ms instant UI close & render
+    setLeads((prev) => [optimisticLead, ...prev]);
+    setAddLeadOpen(false);
+    setCompanyName('');
+    setContactName('');
+    setEmail('');
+    setPhone('');
+    setServiceInterest('');
+    setPriority('MEDIUM');
+    setClientNeeds('');
+    setCodrixSolution('');
+    setProofLinks('');
+    setResearchPoints('');
+
     try {
-      await apiRequest('/crm/leads', {
+      const res: any = await apiRequest('/crm/leads', {
         method: 'POST',
         body: JSON.stringify({
-          companyName,
-          contactName,
-          email,
-          phone,
-          serviceInterest,
-          priority,
-          clientNeeds,
-          codrixSolution,
-          proofLinks,
-          researchPoints,
-          assignedBdeEmail,
-          assignedBdeName,
-          assignedBdeId
+          companyName: optimisticLead.companyName,
+          contactName: optimisticLead.contactName,
+          email: optimisticLead.email,
+          phone: optimisticLead.phone,
+          serviceInterest: optimisticLead.serviceInterest,
+          priority: optimisticLead.priority,
+          clientNeeds: optimisticLead.clientNeeds,
+          codrixSolution: optimisticLead.codrixSolution,
+          proofLinks: optimisticLead.proofLinks,
+          researchPoints: optimisticLead.researchPoints,
+          assignedBdeEmail: optimisticLead.assignedBdeEmail,
+          assignedBdeName: optimisticLead.assignedBdeName,
+          assignedBdeId: optimisticLead.assignedBdeId
         })
       });
-      setAddLeadOpen(false);
-      setCompanyName('');
-      setContactName('');
-      setEmail('');
-      setPhone('');
-      setServiceInterest('');
-      setPriority('MEDIUM');
-      setClientNeeds('');
-      setCodrixSolution('');
-      setProofLinks('');
-      setResearchPoints('');
-      loadData();
+      if (res?.data) {
+        setLeads((prev) => prev.map((l) => (l.id === tempId ? { ...l, ...res.data, id: res.data.id || res.data._id } : l)));
+      }
     } catch (err: any) {
+      setLeads((prev) => prev.filter((l) => l.id !== tempId));
       alert(err.message || 'Error creating lead');
     }
   };
