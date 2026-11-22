@@ -26,7 +26,10 @@ router.get('/', async (req: Request, res: Response) => {
 
     const formatted = templates.map((t) => ({
       ...t,
-      id: t._id.toString()
+      id: t._id.toString(),
+      htmlBody: t.htmlBody || '',
+      bodyHtml: t.htmlBody || '',
+      isDefault: t.isSystemDefault ?? true
     }));
 
     res.json({ data: formatted });
@@ -67,7 +70,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     const cols = getCollections();
     const tenantId = req.auth!.user.tenantId;
     const { id } = req.params;
-    const { subject, htmlBody, textBody, name, description, variables } = req.body;
+    const { subject, htmlBody, bodyHtml, textBody, name, description, variables } = req.body;
 
     let query: any = { tenantId };
     try {
@@ -82,6 +85,8 @@ router.put('/:id', async (req: Request, res: Response) => {
       return;
     }
 
+    const effectiveHtml = htmlBody !== undefined ? htmlBody : bodyHtml;
+
     const updateFields: any = {
       updatedAt: new Date(),
       updatedBy: req.auth!.user.fullName || req.auth!.user.email,
@@ -89,7 +94,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     };
 
     if (subject !== undefined) updateFields.subject = subject.trim();
-    if (htmlBody !== undefined) updateFields.htmlBody = htmlBody;
+    if (effectiveHtml !== undefined) updateFields.htmlBody = effectiveHtml;
     if (textBody !== undefined) updateFields.textBody = textBody;
     if (name !== undefined) updateFields.name = name.trim();
     if (description !== undefined) updateFields.description = description.trim();
@@ -98,7 +103,13 @@ router.put('/:id', async (req: Request, res: Response) => {
     await cols.emailTemplates.updateOne({ _id: existing._id }, { $set: updateFields });
 
     const updated = await cols.emailTemplates.findOne({ _id: existing._id });
-    const resultData = { ...updated, id: updated?._id?.toString() };
+    const resultData = {
+      ...updated,
+      id: updated?._id?.toString(),
+      htmlBody: updated?.htmlBody || '',
+      bodyHtml: updated?.htmlBody || '',
+      isDefault: updated?.isSystemDefault ?? false
+    };
 
     await AuditService.log({
       user: req.auth!.user,

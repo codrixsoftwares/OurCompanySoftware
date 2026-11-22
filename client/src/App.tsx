@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.js';
 import { LoginView } from './views/auth/LoginView.js';
 import { ScreenSizeGuard } from './components/common/ScreenSizeGuard.js';
+import { ErrorBoundary } from './components/common/ErrorBoundary.js';
 import { AppShell } from './components/shell/AppShell.js';
 import { DashboardView } from './views/dashboards/DashboardView.js';
 import { RecruitmentView } from './views/recruitment/RecruitmentView.js';
@@ -67,7 +68,9 @@ const MainApp: React.FC = () => {
       {currentTab === 'hrms' && <HrmsView />}
       {currentTab === 'email-templates' && (
         canAccessEmailTemplates ? (
-          <EmailTemplatesView />
+          <ErrorBoundary fallbackTitle="Email Templates Studio encountered a temporary issue">
+            <EmailTemplatesView />
+          </ErrorBoundary>
         ) : (
           <div className="p-12 text-center text-[#585172] bg-white rounded-3xl border border-[#E7E0FB] m-6">
             <h2 className="text-base font-extrabold text-[#120E24]">Access Restricted</h2>

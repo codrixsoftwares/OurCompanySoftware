@@ -34,10 +34,12 @@ interface EmailTemplate {
   name: string;
   description: string;
   subject: string;
-  bodyHtml: string;
+  htmlBody?: string;
+  bodyHtml?: string;
   variables: string[];
   sampleData?: Record<string, string>;
-  isDefault: boolean;
+  isDefault?: boolean;
+  isSystemDefault?: boolean;
   updatedBy?: string;
   updatedAt?: string;
 }
@@ -78,7 +80,15 @@ export const EmailTemplatesView: React.FC = () => {
     setLoading(true);
     try {
       const data = await apiRequest<EmailTemplate[]>('/email-templates');
-      setTemplates(data || []);
+      const normalized = (data || []).map((t) => ({
+        ...t,
+        subject: t.subject || '',
+        htmlBody: t.htmlBody || t.bodyHtml || '',
+        bodyHtml: t.htmlBody || t.bodyHtml || '',
+        variables: Array.isArray(t.variables) ? t.variables : [],
+        isDefault: t.isDefault ?? t.isSystemDefault ?? true
+      }));
+      setTemplates(normalized);
     } catch (err: any) {
       showToast('error', err?.message || 'Failed to fetch email templates from server');
     } finally {
@@ -91,17 +101,30 @@ export const EmailTemplatesView: React.FC = () => {
 
     // Listen for real-time template updates via Socket.IO
     const socket = getSocket();
-    const handleTemplateUpdated = (updated: EmailTemplate) => {
+    const handleTemplateUpdated = (payload: any) => {
+      const updated = payload?.template || payload;
+      if (!updated?.templateKey) return;
+      const normalizedUpdated: EmailTemplate = {
+        ...updated,
+        subject: updated.subject || '',
+        htmlBody: updated.htmlBody || updated.bodyHtml || '',
+        bodyHtml: updated.htmlBody || updated.bodyHtml || '',
+        variables: Array.isArray(updated.variables) ? updated.variables : []
+      };
       setTemplates((prev) =>
-        prev.map((t) => (t.templateKey === updated.templateKey ? { ...t, ...updated } : t))
+        prev.map((t) => (t.templateKey === normalizedUpdated.templateKey ? { ...t, ...normalizedUpdated } : t))
       );
+      if (editingTemplate?.templateKey === normalizedUpdated.templateKey) {
+        setEditSubject(normalizedUpdated.subject);
+        setEditBodyHtml(normalizedUpdated.htmlBody || normalizedUpdated.bodyHtml || '');
+      }
     };
 
     socket.on('template:updated', handleTemplateUpdated);
     return () => {
       socket.off('template:updated', handleTemplateUpdated);
     };
-  }, []);
+  }, [editingTemplate]);
 
   // Filter templates
   const filteredTemplates = useMemo(() => {
@@ -109,10 +132,10 @@ export const EmailTemplatesView: React.FC = () => {
       const matchesCategory = selectedCategory === 'ALL' || tpl.category === selectedCategory;
       const query = searchQuery.toLowerCase();
       const matchesSearch =
-        tpl.name.toLowerCase().includes(query) ||
-        tpl.templateKey.toLowerCase().includes(query) ||
-        tpl.subject.toLowerCase().includes(query) ||
-        tpl.description.toLowerCase().includes(query);
+        (tpl.name || '').toLowerCase().includes(query) ||
+        (tpl.templateKey || '').toLowerCase().includes(query) ||
+        (tpl.subject || '').toLowerCase().includes(query) ||
+        (tpl.description || '').toLowerCase().includes(query);
       return matchesCategory && matchesSearch;
     });
   }, [templates, selectedCategory, searchQuery]);
@@ -120,8 +143,8 @@ export const EmailTemplatesView: React.FC = () => {
   // Open Edit Modal
   const handleOpenEdit = (tpl: EmailTemplate) => {
     setEditingTemplate(tpl);
-    setEditSubject(tpl.subject);
-    setEditBodyHtml(tpl.bodyHtml);
+    setEditSubject(tpl.subject || '');
+    setEditBodyHtml(tpl.htmlBody || tpl.bodyHtml || '');
   };
 
   // Insert Variable into HTML Body at cursor
@@ -149,16 +172,28 @@ export const EmailTemplatesView: React.FC = () => {
     setSaving(true);
     try {
       const templateId = editingTemplate.id || editingTemplate._id || editingTemplate.templateKey;
+      const cleanSubject = (editSubject || '').trim();
+      const cleanBody = editBodyHtml || '';
+
       const updated = await apiRequest<EmailTemplate>(`/email-templates/${templateId}`, {
         method: 'PUT',
         body: JSON.stringify({
-          subject: editSubject,
-          bodyHtml: editBodyHtml
+          subject: cleanSubject,
+          htmlBody: cleanBody,
+          bodyHtml: cleanBody
         })
       });
 
+      const normalized: EmailTemplate = {
+        ...updated,
+        subject: updated.subject || cleanSubject,
+        htmlBody: updated.htmlBody || updated.bodyHtml || cleanBody,
+        bodyHtml: updated.htmlBody || updated.bodyHtml || cleanBody,
+        isDefault: false
+      };
+
       setTemplates((prev) =>
-        prev.map((t) => (t.templateKey === editingTemplate.templateKey ? { ...t, ...updated } : t))
+        prev.map((t) => (t.templateKey === editingTemplate.templateKey ? { ...t, ...normalized } : t))
       );
       showToast('success', `Email template "${editingTemplate.name}" updated and synchronized across CodRix!`);
       setEditingTemplate(null);
@@ -182,13 +217,21 @@ export const EmailTemplatesView: React.FC = () => {
       );
 
       if (res.template) {
+        const normalized: EmailTemplate = {
+          ...res.template,
+          subject: res.template.subject || '',
+          htmlBody: res.template.htmlBody || res.template.bodyHtml || '',
+          bodyHtml: res.template.htmlBody || res.template.bodyHtml || '',
+          isDefault: true
+        };
+
         setTemplates((prev) =>
-          prev.map((t) => (t.templateKey === tpl.templateKey ? { ...t, ...res.template } : t))
+          prev.map((t) => (t.templateKey === tpl.templateKey ? { ...t, ...normalized } : t))
         );
         if (editingTemplate?.templateKey === tpl.templateKey) {
-          setEditSubject(res.template.subject);
-          setEditBodyHtml(res.template.bodyHtml);
-          setEditingTemplate(res.template);
+          setEditSubject(normalized.subject);
+          setEditBodyHtml(normalized.htmlBody || '');
+          setEditingTemplate(normalized);
         }
         showToast('success', `"${tpl.name}" has been restored to factory default.`);
       }
@@ -207,7 +250,8 @@ export const EmailTemplatesView: React.FC = () => {
   // Dispatch Test Email
   const handleSendTestEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!testTargetTemplate || !testRecipientEmail.trim()) return;
+    const recipient = (testRecipientEmail || '').trim();
+    if (!testTargetTemplate || !recipient) return;
     setSendingTest(true);
     try {
       const templateId = testTargetTemplate.id || testTargetTemplate._id || testTargetTemplate.templateKey;
@@ -215,7 +259,7 @@ export const EmailTemplatesView: React.FC = () => {
         `/email-templates/${templateId}/send-test`,
         {
           method: 'POST',
-          body: JSON.stringify({ recipientEmail: testRecipientEmail.trim() })
+          body: JSON.stringify({ recipientEmail: recipient })
         }
       );
       showToast('success', `Test email dispatched successfully to ${res.recipient}!`);
@@ -230,7 +274,7 @@ export const EmailTemplatesView: React.FC = () => {
   // Render HTML preview with sample variables substituted
   const renderedHtmlPreview = useMemo(() => {
     if (!editingTemplate) return '';
-    let html = editBodyHtml;
+    let html = editBodyHtml || '';
     const sample = editingTemplate.sampleData || {};
     Object.keys(sample).forEach((k) => {
       const reg = new RegExp(`{{${k}}}`, 'g');
@@ -659,7 +703,7 @@ export const EmailTemplatesView: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  disabled={saving || !editSubject.trim() || !editBodyHtml.trim()}
+                  disabled={saving || !(editSubject || '').trim() || !(editBodyHtml || '').trim()}
                   onClick={handleSaveTemplate}
                   className="px-6 py-2.5 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white rounded-2xl text-xs font-black transition flex items-center gap-2 shadow-md shadow-[#7C2CF5]/25 disabled:opacity-50"
                 >
@@ -717,7 +761,7 @@ export const EmailTemplatesView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={sendingTest || !testRecipientEmail.trim()}
+                  disabled={sendingTest || !(testRecipientEmail || '').trim()}
                   className="px-5 py-2 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-[#7C2CF5]/20 disabled:opacity-50"
                 >
                   {sendingTest ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
