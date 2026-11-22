@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 import { connectMongo, syncMongoDatabase } from './core/mongodb.js';
+import { MigrationRunner } from './core/migrations/migrationRunner.js';
 import { authMiddleware } from './core/auth/middleware.js';
 import { SocketService } from './core/socket/socketService.js';
 import authRoutes from './modules/auth/authRoutes.js';
@@ -98,8 +99,9 @@ async function start() {
   }
 
   try {
-    await connectMongo();
+    const db = await connectMongo();
     await syncMongoDatabase();
+    MigrationRunner.runPending(db).catch((e) => console.warn('Background migration notice:', e?.message || e));
   } catch (error) {
     console.error('Fatal database startup error:', error);
   }
