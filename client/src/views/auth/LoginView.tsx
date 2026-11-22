@@ -28,13 +28,13 @@ export const LoginView: React.FC = () => {
   useEffect(() => {
     if (!turnstileSiteKey) return;
 
-    // Dynamically load Cloudflare Turnstile script if not already loaded
-    const scriptId = 'cloudflare-turnstile-script';
-    let script = document.getElementById(scriptId) as HTMLScriptElement;
+    let intervalId: any = null;
 
     const renderWidget = () => {
       if (window.turnstile && turnstileContainerRef.current && !widgetIdRef.current) {
         try {
+          // Clear any stale child elements
+          turnstileContainerRef.current.innerHTML = '';
           widgetIdRef.current = window.turnstile.render(turnstileContainerRef.current, {
             sitekey: turnstileSiteKey,
             theme: 'light',
@@ -46,14 +46,22 @@ export const LoginView: React.FC = () => {
               setTurnstileToken(null);
             },
             'error-callback': () => {
-              console.warn('[Cloudflare Turnstile] Challenge error or blocked.');
+              console.warn('[Cloudflare Turnstile] Challenge error or hostname unverified.');
             }
           });
+          if (intervalId) {
+            clearInterval(intervalId);
+            intervalId = null;
+          }
         } catch (e) {
           console.error('[Cloudflare Turnstile] Render error:', e);
         }
       }
     };
+
+    // Dynamically load Cloudflare Turnstile script if not already loaded
+    const scriptId = 'cloudflare-turnstile-script';
+    let script = document.getElementById(scriptId) as HTMLScriptElement;
 
     if (!script) {
       script = document.createElement('script');
@@ -65,11 +73,19 @@ export const LoginView: React.FC = () => {
         renderWidget();
       };
       document.body.appendChild(script);
-    } else if (window.turnstile) {
+    } else {
       renderWidget();
     }
 
+    // Polling fallback to guarantee rendering when window.turnstile initializes
+    intervalId = setInterval(() => {
+      if (window.turnstile && !widgetIdRef.current) {
+        renderWidget();
+      }
+    }, 200);
+
     return () => {
+      if (intervalId) clearInterval(intervalId);
       if (window.turnstile && widgetIdRef.current) {
         try {
           window.turnstile.remove(widgetIdRef.current);
