@@ -208,51 +208,10 @@ export async function syncMongoDatabase() {
     }
   }
 
-  // 2b. Ensure dedicated BDE Intern exists for testing quality gatekeeping workflow
-  const bdeUser = await cols.users.findOne({ primaryEmail: 'aryan@codrix.co.in' });
-  if (!bdeUser) {
-    const userRes = await cols.users.insertOne({
-      primaryEmail: 'aryan@codrix.co.in',
-      passwordHash: defaultPasswordHash,
-      fullName: 'Aryan Kapoor',
-      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
-      status: 'ACTIVE',
-      createdAt: new Date(),
-      updatedAt: new Date()
-    });
-    const userId = userRes.insertedId.toString();
-    const memRes = await cols.memberships.insertOne({
-      tenantId,
-      userId,
-      roles: ['BDE'],
-      status: 'ACTIVE',
-      joinedAt: new Date()
-    });
-    await cols.employees.insertOne({
-      tenantId,
-      userId,
-      membershipId: memRes.insertedId.toString(),
-      employeeCode: 'CDX-007',
-      name: 'Aryan Kapoor',
-      fullName: 'Aryan Kapoor',
-      email: 'aryan@codrix.co.in',
-      jobTitle: 'Business Development Intern (BDE)',
-      department: 'Growth',
-      status: 'ACTIVE',
-      joinedAt: new Date(),
-      createdAt: new Date(),
-      updatedAt: new Date()
-    });
-    const existingTm = await cols.teammembers.findOne({ name: 'Aryan Kapoor' });
-    if (!existingTm) {
-      await cols.teammembers.insertOne({
-        name: 'Aryan Kapoor',
-        email: 'aryan@codrix.co.in',
-        role: 'Business Development Intern (BDE)',
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'
-      });
-    }
-  }
+  // 2b. Ensure mock/test users like Aryan Kapoor are purged from all collections
+  await cols.teammembers.deleteMany({ $or: [{ name: /aryan/i }, { email: /aryan/i }] });
+  await cols.employees.deleteMany({ $or: [{ name: /aryan/i }, { fullName: /aryan/i }, { email: /aryan/i }] });
+  await cols.users.deleteMany({ $or: [{ fullName: /aryan/i }, { primaryEmail: /aryan/i }] });
 
   // 3. Ensure Pipeline stages exist (including Internship after Executive Review)
   const defaultStages = [

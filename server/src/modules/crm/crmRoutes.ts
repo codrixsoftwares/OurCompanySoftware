@@ -82,10 +82,7 @@ router.get('/bdes', requireAuth, async (req: Request, res: Response) => {
 
     const bdeUsers = await cols.users.find({
       tenantId,
-      $or: [
-        { _id: { $in: bdeUserIds.filter((id) => ObjectId.isValid(id)).map((id) => new ObjectId(id)) } },
-        { primaryEmail: 'aryan@codrix.co.in' }
-      ]
+      _id: { $in: bdeUserIds.filter((id) => ObjectId.isValid(id)).map((id) => new ObjectId(id)) }
     }).toArray();
 
     const map = new Map<string, any>();
@@ -113,17 +110,6 @@ router.get('/bdes', requireAuth, async (req: Request, res: Response) => {
           jobTitle: 'Business Development Executive (BDE)'
         });
       }
-    }
-
-    if (!map.has('aryan@codrix.co.in')) {
-      map.set('aryan@codrix.co.in', {
-        id: 'aryan-bde',
-        employeeCode: 'CDX-007',
-        fullName: 'Aryan Kapoor',
-        email: 'aryan@codrix.co.in',
-        phone: '+91 98111 22233',
-        jobTitle: 'Business Development Intern (BDE)'
-      });
     }
 
     res.json({ data: Array.from(map.values()) });

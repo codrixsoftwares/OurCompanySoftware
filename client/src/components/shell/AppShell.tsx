@@ -247,8 +247,7 @@ export const AppShell: React.FC<AppShellProps> = ({ currentTab, onSelectTab, chi
                   'anshuman': 'anshuman@codrix.co.in',
                   'suryansh thakur': 'suryansh@codrix.co.in',
                   'diya maheshwari': 'diya@codrix.co.in',
-                  'ishita malhotra': 'ishita@codrix.co.in',
-                  'aryan kapoor': 'aryan@codrix.co.in'
+                  'ishita malhotra': 'ishita@codrix.co.in'
                 };
                 const memberNameKey = (member.name || '').toLowerCase().trim();
                 const memberEmail = member.email || teamEmailMap[memberNameKey] || `${memberNameKey.split(' ')[0]}@codrix.co.in`;
