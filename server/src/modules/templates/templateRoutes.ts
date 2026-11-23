@@ -295,6 +295,16 @@ router.post('/:id/send-test', async (req: Request, res: Response) => {
       text: rendered.text
     });
 
+    if (!dispatchResult.success) {
+      res.status(400).json({
+        error: {
+          code: 'EMAIL_DISPATCH_FAILED',
+          message: dispatchResult.error || 'Failed sending email. Please check your SMTP configuration.'
+        }
+      });
+      return;
+    }
+
     res.json({
       success: true,
       message: `Test email successfully dispatched to ${recipient}`,

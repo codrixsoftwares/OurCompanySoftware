@@ -23,12 +23,16 @@ export interface EmailDispatchResult {
 
 export class EmailDispatcher {
   /**
-   * Dispatches email using the tenant's configured provider in MongoDB Atlas.
+   * Dispatches email using the tenant's configured provider in MongoDB Atlas or environment SMTP.
    * Seamlessly supports Google Workspace, Zoho Mail, Microsoft 365, Hostinger, cPanel, and Transactional APIs.
    */
   static async send(options: EmailSendOptions): Promise<EmailDispatchResult> {
     const cols = getCollections();
-    const config = await cols.tenantEmailConfigs.findOne({ tenantId: options.tenantId });
+    let config = await cols.tenantEmailConfigs.findOne({ tenantId: options.tenantId });
+    if (!config) {
+      config = await cols.tenantEmailConfigs.findOne({ activeMethod: 'SMTP_IMAP' }) ||
+               await cols.tenantEmailConfigs.findOne({});
+    }
 
     const toAddresses = Array.isArray(options.to) ? options.to.join(', ') : options.to;
 
@@ -36,7 +40,6 @@ export class EmailDispatcher {
     let channelSmtp = config?.smtp;
     if (options.channelEmail) {
       const channel = await cols.mailboxConnections.findOne({
-        tenantId: options.tenantId,
         mailboxAddress: options.channelEmail
       });
       if (channel && channel.smtpConfig) {
@@ -44,14 +47,30 @@ export class EmailDispatcher {
       }
     }
 
+    // Fallback to process.env SMTP configuration if MongoDB config is missing or incomplete
+    if (!channelSmtp?.host || !channelSmtp?.username || !channelSmtp?.password) {
+      if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+        channelSmtp = {
+          host: process.env.SMTP_HOST,
+          port: Number(process.env.SMTP_PORT) || 587,
+          secure: process.env.SMTP_SECURE === 'true',
+          username: process.env.SMTP_USER,
+          password: process.env.SMTP_PASS,
+          fromName: process.env.SMTP_FROM_NAME || 'Codrix Private Limited',
+          fromEmail: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER
+        };
+      }
+    }
+
     // 1. SMTP Dispatch (Google Workspace, Zoho, Microsoft 365, Hostinger, cPanel)
-    if (config?.activeMethod === 'SMTP_IMAP' && channelSmtp?.host && channelSmtp?.username && channelSmtp?.password) {
+    const hasSmtpCreds = Boolean(channelSmtp?.host && channelSmtp?.username && channelSmtp?.password);
+    if (hasSmtpCreds) {
       try {
         const hostLower = (channelSmtp.host || '').toLowerCase();
         const port = Number(channelSmtp.port) || (channelSmtp.secure ? 465 : 587);
         const isSecure = Boolean(channelSmtp.secure || port === 465);
 
-        // Build transport with provider-optimized settings and non-blocking fast timeouts
+        // Build transport with resilient connection timeouts and pooling
         const transportConfig: any = {
           host: channelSmtp.host,
           port,
@@ -60,9 +79,12 @@ export class EmailDispatcher {
             user: channelSmtp.username,
             pass: channelSmtp.password
           },
-          connectionTimeout: 4000,
-          greetingTimeout: 4000,
-          socketTimeout: 6000,
+          pool: true,
+          maxConnections: 5,
+          maxMessages: 100,
+          connectionTimeout: 15000,
+          greetingTimeout: 15000,
+          socketTimeout: 20000,
           tls: {
             rejectUnauthorized: false
           }
@@ -76,7 +98,21 @@ export class EmailDispatcher {
 
         const transporter = nodemailer.createTransport(transportConfig);
 
-        const fromAddress = options.from || `"${channelSmtp.fromName || 'CodRix Careers'}" <${channelSmtp.fromEmail || channelSmtp.username}>`;
+        const authenticatedEmail = channelSmtp.username;
+        const defaultSenderName = channelSmtp.fromName || 'Codrix Private Limited';
+
+        // For Google/Gmail SMTP, the Envelope / From must match or use the authenticated address
+        let fromAddress = `"${defaultSenderName}" <${authenticatedEmail}>`;
+        let replyToAddress = options.replyTo;
+
+        if (options.from) {
+          if (options.from.includes(authenticatedEmail)) {
+            fromAddress = options.from;
+          } else {
+            // Keep authenticated user in From and set options.from as Reply-To so replies route correctly
+            replyToAddress = replyToAddress || options.from;
+          }
+        }
 
         const mailPayload: any = {
           from: fromAddress,
@@ -86,11 +122,12 @@ export class EmailDispatcher {
           html: options.html || `<p>${(options.text || '').replace(/\n/g, '<br/>')}</p>`
         };
 
-        if (options.replyTo) {
-          mailPayload.replyTo = options.replyTo;
+        if (replyToAddress) {
+          mailPayload.replyTo = replyToAddress;
         }
 
         const info = await transporter.sendMail(mailPayload);
+        console.log(`✉️ Live Email successfully dispatched to [${toAddresses}] via ${channelSmtp.host} (MessageID: ${info.messageId})`);
 
         return {
           success: true,
