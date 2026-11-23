@@ -1,4 +1,5 @@
 import { getCollections } from '../mongodb.js';
+import { SocketService } from '../socket/socketService.js';
 
 export interface EmailSendOptions {
   tenantId: string;
@@ -68,6 +69,88 @@ export class EmailDispatcher {
 
       if (res.ok) {
         console.log(`✉️ Live Email successfully dispatched via Resend HTTPS (Port 443) [MessageID: ${resData.id}] to [${toAddresses.join(', ')}]`);
+
+        // Automatically record message in Mailbox DB & broadcast in real time across Socket.IO
+        try {
+          const existingMsg = await cols.emailMessages.findOne({ providerMessageId: resData.id });
+          if (!existingMsg) {
+            const mb = await cols.mailboxConnections.findOne({ tenantId: options.tenantId }) ||
+                       await cols.mailboxConnections.findOne({});
+            const mbId = mb?._id?.toString() || 'default_mailbox';
+
+            let thread = await cols.emailThreads.findOne({
+              tenantId: options.tenantId,
+              mailboxConnectionId: mbId,
+              subject: options.subject
+            });
+
+            const snippet = options.text
+              ? options.text.substring(0, 120).trim()
+              : (options.html ? options.html.replace(/<[^>]*>/g, '').substring(0, 120).trim() : 'Email via Resend Engine');
+
+            let threadId: string;
+            if (!thread) {
+              const threadDoc = {
+                tenantId: options.tenantId,
+                mailboxConnectionId: mbId,
+                providerThreadId: `th_resend_${resData.id}`,
+                subject: options.subject,
+                snippet,
+                folder: 'SENT',
+                unread: false,
+                lastMessageAt: new Date()
+              };
+              const ins = await cols.emailThreads.insertOne(threadDoc);
+              threadId = ins.insertedId.toString();
+            } else {
+              threadId = thread._id.toString();
+              await cols.emailThreads.updateOne(
+                { _id: thread._id },
+                { $set: { lastMessageAt: new Date(), snippet } }
+              );
+            }
+
+            const msgDoc = {
+              tenantId: options.tenantId,
+              threadId,
+              providerMessageId: resData.id,
+              direction: 'OUTBOUND',
+              sender: fromAddress,
+              recipients: toAddresses,
+              subject: options.subject,
+              body: options.html || options.text || `<p>${snippet}</p>`,
+              sentAt: new Date(),
+              provider: 'RESEND'
+            };
+            await cols.emailMessages.insertOne(msgDoc);
+
+            SocketService.emitToTenant(options.tenantId, 'mailbox:new_message', {
+              mailboxConnectionId: mbId,
+              threadId,
+              folder: 'SENT',
+              message: { ...msgDoc }
+            });
+            SocketService.emitToTenant(options.tenantId, 'email:new', {
+              mailboxConnectionId: mbId,
+              threadId,
+              folder: 'SENT',
+              message: { ...msgDoc }
+            });
+            SocketService.emitToTenant(options.tenantId, 'mailbox:thread_updated', {
+              mailboxConnectionId: mbId,
+              threadId,
+              folder: 'SENT'
+            });
+            SocketService.emitToTenant(options.tenantId, 'email:thread_updated', {
+              mailboxConnectionId: mbId,
+              threadId,
+              folder: 'SENT'
+            });
+          }
+        } catch (dbErr: any) {
+          console.warn('[EmailDispatcher] Notice: Mailbox tracking async sync:', dbErr.message);
+        }
+
         return {
           success: true,
           messageId: resData.id,

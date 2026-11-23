@@ -4,7 +4,7 @@ import { getCollections } from '../../core/mongodb.js';
 import { requireAuth, requireLakshaySuperAdmin } from '../../core/auth/middleware.js';
 import { AuditService } from '../../core/audit/auditService.js';
 import { EmailDispatcher } from '../../core/email/emailDispatcher.js';
-import { ImapSyncService } from '../../core/email/imapSyncService.js';
+import { ResendSyncService } from '../../core/email/resendSyncService.js';
 import { SocketService } from '../../core/socket/socketService.js';
 
 const router = Router();
@@ -67,13 +67,13 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/v1/mailboxes/:id/sync (Trigger live IMAP / Server sync)
+// POST /api/v1/mailboxes/:id/sync (Trigger live Resend / Server sync)
 router.post('/:id/sync', requireAuth, async (req: Request, res: Response) => {
   try {
     const mailboxConnectionId = req.params.id;
     const tenantId = req.auth!.user.tenantId;
 
-    const result = await ImapSyncService.syncMailbox(tenantId, mailboxConnectionId);
+    const result = await ResendSyncService.syncMailbox(tenantId, mailboxConnectionId);
     res.json({ data: result });
   } catch (err: any) {
     res.status(500).json({ error: { code: 'SYNC_ERROR', message: err.message } });

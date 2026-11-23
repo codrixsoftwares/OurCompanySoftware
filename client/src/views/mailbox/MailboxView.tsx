@@ -221,7 +221,7 @@ export const MailboxView: React.FC = () => {
     };
   }, [activeMailboxId, activeFolder, activeCategory, selectedLabel, searchQuery, selectedThreadId]);
 
-  // IMAP Manual Sync
+  // Resend Real-Time Sync
   const handleSyncMailbox = async () => {
     if (!activeMailboxId) return;
     setSyncing(true);
@@ -238,7 +238,7 @@ export const MailboxView: React.FC = () => {
     } catch (err: any) {
       setSyncFeedback({
         type: 'error',
-        message: err.message || 'IMAP sync failed. Verify credentials in Domain & Settings.'
+        message: err.message || 'Resend sync failed. Verify API Key in Domain & Settings.'
       });
       setTimeout(() => setSyncFeedback(null), 6000);
     } finally {
@@ -457,7 +457,7 @@ export const MailboxView: React.FC = () => {
           idempotencyKey: `new_${Date.now()}`
         })
       });
-      setComposeFeedback('Email sent successfully!');
+      setComposeFeedback('Email dispatched live via Resend HTTPS (Port 443)!');
       setTimeout(() => {
         setComposeOpen(false);
         setComposeTo('');
@@ -540,7 +540,7 @@ export const MailboxView: React.FC = () => {
             <span>Mail Account</span>
             <span className="inline-flex items-center gap-1 text-emerald-600 font-extrabold">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              IMAP Active
+              Resend Active (Port 443)
             </span>
           </div>
           <select
@@ -555,15 +555,15 @@ export const MailboxView: React.FC = () => {
             ))}
           </select>
 
-          {/* Quick Manual IMAP Sync Button */}
+          {/* Quick Manual Resend Sync Button */}
           <button
             onClick={handleSyncMailbox}
             disabled={syncing}
             className="mt-2 w-full py-1.5 px-2 bg-white hover:bg-[#EDE4FF] border border-[#E7E0FB] text-[#7C2CF5] rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition"
-            title="Fetch new inbound messages via IMAP"
+            title="Fetch live messages and status via Resend REST API"
           >
             <RefreshCw className={`w-3 h-3 ${syncing ? 'animate-spin' : ''}`} />
-            <span>{syncing ? 'Syncing Server...' : 'Check Server (IMAP)'}</span>
+            <span>{syncing ? 'Syncing Resend...' : 'Sync with Resend Engine'}</span>
           </button>
         </div>
 
@@ -1214,7 +1214,7 @@ export const MailboxView: React.FC = () => {
                   <Mail className="w-12 h-12 text-[#DDD0FE] mx-auto mb-3" />
                   <p className="font-bold text-[#120E24] text-sm">No messages in {activeFolder}</p>
                   <p className="text-xs text-[#585172] mt-1 max-w-sm mx-auto">
-                    Your company inbox is synchronized. Click <strong>"Check Server (IMAP)"</strong> to fetch newly incoming correspondence.
+                    Your company inbox is synchronized. Click <strong>"Sync with Resend Engine"</strong> to refresh real-time mailbox messages.
                   </p>
                 </div>
               ) : (
