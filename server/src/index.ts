@@ -92,18 +92,18 @@ export const server = http.createServer(app);
 SocketService.init(server);
 
 async function start() {
-  if (process.env.NODE_ENV !== 'test') {
-    server.listen(PORT, () => {
-      console.log(`🚀 CodRix API running on http://localhost:${PORT}/api/v1 (with Socket.IO active)`);
-    });
-  }
-
   try {
     const db = await connectMongo();
     await syncMongoDatabase();
     MigrationRunner.runPending(db).catch((e) => console.warn('Background migration notice:', e?.message || e));
   } catch (error) {
     console.error('Fatal database startup error:', error);
+  }
+
+  if (process.env.NODE_ENV !== 'test') {
+    server.listen(PORT, () => {
+      console.log(`🚀 CodRix API running on http://localhost:${PORT}/api/v1 (with Socket.IO active)`);
+    });
   }
 }
 

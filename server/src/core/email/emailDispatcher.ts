@@ -62,19 +62,122 @@ export class EmailDispatcher {
       }
     }
 
+    // Check for HTTPS Transactional API keys (Port 443 - 100% unblocked on Render)
+    const resendApiKey = process.env.RESEND_API_KEY || (config?.transactional?.provider === 'RESEND' && config.transactional.apiKey && !config.transactional.apiKey.includes('test') ? config.transactional.apiKey : undefined);
+    const brevoApiKey = process.env.BREVO_API_KEY;
+
+    // Helper: Dispatch via Resend HTTPS REST API (Port 443)
+    const dispatchViaResend = async (apiKey: string): Promise<EmailDispatchResult> => {
+      try {
+        const fromAddress = options.from || `"${channelSmtp?.fromName || config?.transactional?.fromName || 'Codrix Private Limited'}" <${config?.transactional?.fromEmail || 'connect@codrix.co.in'}>`;
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            from: fromAddress,
+            to: Array.isArray(options.to) ? options.to : [options.to],
+            subject: options.subject,
+            reply_to: options.replyTo,
+            html: options.html || `<p>${(options.text || '').replace(/\n/g, '<br/>')}</p>`,
+            text: options.text || ''
+          })
+        });
+        const resData: any = await res.json();
+        if (res.ok) {
+          console.log(`✉️ Live Email successfully dispatched via Resend HTTPS (Port 443) [MessageID: ${resData.id}]`);
+          return {
+            success: true,
+            messageId: resData.id,
+            deliveryMethod: 'RESEND_HTTPS_API (Port 443)',
+            info: resData
+          };
+        } else {
+          return {
+            success: false,
+            deliveryMethod: 'RESEND_HTTPS_API',
+            error: resData.message || 'Resend API returned error'
+          };
+        }
+      } catch (err: any) {
+        return {
+          success: false,
+          deliveryMethod: 'RESEND_HTTPS_API',
+          error: err.message
+        };
+      }
+    };
+
+    // Helper: Dispatch via Brevo HTTPS REST API (Port 443)
+    const dispatchViaBrevo = async (apiKey: string): Promise<EmailDispatchResult> => {
+      try {
+        const senderName = channelSmtp?.fromName || 'Codrix Private Limited';
+        const senderEmail = channelSmtp?.fromEmail || 'connect@codrix.co.in';
+        const toList = (Array.isArray(options.to) ? options.to : [options.to]).map((e) => ({ email: e }));
+
+        const payload: any = {
+          sender: { name: senderName, email: senderEmail },
+          to: toList,
+          subject: options.subject,
+          htmlContent: options.html || `<p>${(options.text || '').replace(/\n/g, '<br/>')}</p>`
+        };
+        if (options.replyTo) {
+          payload.replyTo = { email: options.replyTo };
+        }
+
+        const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'api-key': apiKey,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        const resData: any = await res.json();
+        if (res.ok) {
+          console.log(`✉️ Live Email successfully dispatched via Brevo HTTPS (Port 443) [MessageID: ${resData.messageId}]`);
+          return {
+            success: true,
+            messageId: resData.messageId,
+            deliveryMethod: 'BREVO_HTTPS_API (Port 443)',
+            info: resData
+          };
+        } else {
+          return {
+            success: false,
+            deliveryMethod: 'BREVO_HTTPS_API',
+            error: resData.message || JSON.stringify(resData)
+          };
+        }
+      } catch (err: any) {
+        return {
+          success: false,
+          deliveryMethod: 'BREVO_HTTPS_API',
+          error: err.message
+        };
+      }
+    };
+
+    // Priority 1: If explicit TRANSACTIONAL_API mode or explicit RESEND_API_KEY configured, use Port 443
+    if (resendApiKey && (config?.activeMethod === 'TRANSACTIONAL_API' || process.env.PREFER_HTTPS_EMAIL === 'true')) {
+      return await dispatchViaResend(resendApiKey);
+    }
+    if (brevoApiKey && (config?.activeMethod === 'TRANSACTIONAL_API' || process.env.PREFER_HTTPS_EMAIL === 'true')) {
+      return await dispatchViaBrevo(brevoApiKey);
+    }
+
     // 1. SMTP Dispatch (Google Workspace, Zoho, Microsoft 365, Hostinger, cPanel)
     const hasSmtpCreds = Boolean(channelSmtp?.host && channelSmtp?.username && channelSmtp?.password);
     if (hasSmtpCreds) {
-      try {
+      // Helper function to send via nodemailer with configurable port and ssl
+      const attemptSmtpSend = async (targetPort: number, targetSecure: boolean): Promise<EmailDispatchResult> => {
         const hostLower = (channelSmtp.host || '').toLowerCase();
-        const port = Number(channelSmtp.port) || (channelSmtp.secure ? 465 : 587);
-        const isSecure = Boolean(channelSmtp.secure || port === 465);
-
-        // Build transport with resilient connection timeouts and pooling
         const transportConfig: any = {
           host: channelSmtp.host,
-          port,
-          secure: isSecure,
+          port: targetPort,
+          secure: targetSecure,
           auth: {
             user: channelSmtp.username,
             pass: channelSmtp.password
@@ -82,26 +185,23 @@ export class EmailDispatcher {
           pool: true,
           maxConnections: 5,
           maxMessages: 100,
-          connectionTimeout: 15000,
-          greetingTimeout: 15000,
-          socketTimeout: 20000,
+          connectionTimeout: 8000,
+          greetingTimeout: 8000,
+          socketTimeout: 10000,
           tls: {
             rejectUnauthorized: false
           }
         };
 
-        // Microsoft 365 requires STARTTLS
         if (hostLower.includes('office365') || hostLower.includes('outlook')) {
           transportConfig.requireTLS = true;
           transportConfig.secure = false;
         }
 
         const transporter = nodemailer.createTransport(transportConfig);
-
         const authenticatedEmail = channelSmtp.username;
         const defaultSenderName = channelSmtp.fromName || 'Codrix Private Limited';
 
-        // For Google/Gmail SMTP, the Envelope / From must match or use the authenticated address
         let fromAddress = `"${defaultSenderName}" <${authenticatedEmail}>`;
         let replyToAddress = options.replyTo;
 
@@ -109,7 +209,6 @@ export class EmailDispatcher {
           if (options.from.includes(authenticatedEmail)) {
             fromAddress = options.from;
           } else {
-            // Keep authenticated user in From and set options.from as Reply-To so replies route correctly
             replyToAddress = replyToAddress || options.from;
           }
         }
@@ -127,43 +226,58 @@ export class EmailDispatcher {
         }
 
         const info = await transporter.sendMail(mailPayload);
-        console.log(`✉️ Live Email successfully dispatched to [${toAddresses}] via ${channelSmtp.host} (MessageID: ${info.messageId})`);
+        console.log(`✉️ Live Email successfully dispatched to [${toAddresses}] via ${channelSmtp.host}:${targetPort} (MessageID: ${info.messageId})`);
 
         return {
           success: true,
           messageId: info.messageId,
-          deliveryMethod: `SMTP_LIVE (${channelSmtp.host})`,
+          deliveryMethod: `SMTP_LIVE (${channelSmtp.host}:${targetPort})`,
           info
         };
+      };
+
+      try {
+        const primaryPort = Number(channelSmtp.port) || (channelSmtp.secure ? 465 : 587);
+        const primarySecure = Boolean(channelSmtp.secure || primaryPort === 465);
+
+        // Attempt 1: Configured port (e.g. 587)
+        return await attemptSmtpSend(primaryPort, primarySecure);
       } catch (err: any) {
-        console.error('SMTP Dispatch Failed:', err.message);
-        let errorMsg = err.message || 'SMTP Dispatch Failed';
+        console.warn(`[SMTP Alert] Primary port attempt failed (${err.message}). Trying SSL port 465 fallback...`);
 
-        // Intelligent provider-specific diagnostic error messages
-        const hostLower = (channelSmtp.host || '').toLowerCase();
-        if (hostLower.includes('google') || hostLower.includes('gmail')) {
-          if (errorMsg.includes('535') || errorMsg.includes('BadCredentials') || errorMsg.includes('Username and Password not accepted')) {
-            errorMsg = 'Google Workspace Error (535 5.7.8): Google requires a 16-character App Password (not your normal Google account password). Generate one at https://myaccount.google.com/apppasswords, enter it as your SMTP password in Settings, and retry.';
+        // Attempt 2: Dual-port SSL fallback on port 465
+        try {
+          return await attemptSmtpSend(465, true);
+        } catch (fallbackErr: any) {
+          console.error('[SMTP Alert] Port 465 fallback also failed:', fallbackErr.message);
+
+          // If raw SMTP ports 587 & 465 are blocked by cloud firewall (Render), failover to HTTPS API if key present
+          if (resendApiKey) {
+            console.log('[Email Dispatcher] Failing over to Resend HTTPS API (Port 443)...');
+            return await dispatchViaResend(resendApiKey);
           }
-        } else if (hostLower.includes('zoho')) {
-          if (errorMsg.includes('535') || errorMsg.includes('Authentication Failed') || errorMsg.includes('not accepted')) {
-            errorMsg = 'Zoho Mail Error (535): Zoho requires an Application-Specific Password. Go to accounts.zoho.com > Security > Application-Specific Passwords, generate a password for CodRix, and ensure the "From" address matches your Zoho account or configured alias.';
+          if (brevoApiKey) {
+            console.log('[Email Dispatcher] Failing over to Brevo HTTPS API (Port 443)...');
+            return await dispatchViaBrevo(brevoApiKey);
           }
-        } else if (hostLower.includes('office365') || hostLower.includes('outlook')) {
-          if (errorMsg.includes('535') || errorMsg.includes('5.7.139') || errorMsg.includes('5.7.57') || errorMsg.includes('Authentication unsuccessful')) {
-            errorMsg = 'Microsoft 365 Error: "Authenticated SMTP" may be disabled for this user. In Microsoft 365 Admin Center (admin.microsoft.com), navigate to Users > Active Users > select account > Mail > Manage email apps > check "Authenticated SMTP". Also generate an App Password if Multi-Factor Authentication is enabled.';
+
+          let errorMsg = err.message || 'SMTP Dispatch Failed';
+          const hostLower = (channelSmtp.host || '').toLowerCase();
+
+          if (errorMsg.includes('Connection timeout') || errorMsg.includes('ETIMEDOUT') || errorMsg.includes('timed out')) {
+            errorMsg = 'Cloud Firewall Block: Outbound SMTP ports (587 & 465) are blocked by Render on free services. Please configure a free Resend API key (https://resend.com) in Render Environment Variables as RESEND_API_KEY to send emails via unblocked HTTPS (Port 443).';
+          } else if (hostLower.includes('google') || hostLower.includes('gmail')) {
+            if (errorMsg.includes('535') || errorMsg.includes('BadCredentials') || errorMsg.includes('Username and Password not accepted')) {
+              errorMsg = 'Google Workspace Error (535 5.7.8): Google requires a 16-character App Password. Generate one at https://myaccount.google.com/apppasswords.';
+            }
           }
-        } else if (hostLower.includes('hostinger') || hostLower.includes('cpanel') || Number(channelSmtp.port) === 465) {
-          if (errorMsg.includes('535') || errorMsg.includes('Incorrect authentication data')) {
-            errorMsg = `Hostinger / cPanel Error: Authentication failed for ${channelSmtp.username}. Ensure your full email address is entered as the username and that port 465 (SSL) or 587 (TLS) is selected.`;
-          }
+
+          return {
+            success: false,
+            deliveryMethod: `SMTP_LIVE (${channelSmtp.host})`,
+            error: errorMsg
+          };
         }
-
-        return {
-          success: false,
-          deliveryMethod: `SMTP_LIVE (${channelSmtp.host})`,
-          error: errorMsg
-        };
       }
     }
 
