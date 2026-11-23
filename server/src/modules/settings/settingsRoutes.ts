@@ -19,86 +19,8 @@ const requireAdmin = (req: Request, res: Response, next: Function) => {
   next();
 };
 
-// GET /api/v1/settings/email
-router.get('/email', requireAuth, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const cols = getCollections();
-    const tenantId = req.auth!.user.tenantId;
-
-    let config: any = await cols.tenantEmailConfigs.findOne({ tenantId });
-
-    if (!config) {
-      // Default initial config for CodRix
-      const newConfig = {
-        tenantId,
-        activeMethod: 'SMTP_IMAP',
-        domain: 'codrix.co.in',
-        smtp: {
-          host: 'smtp.gmail.com',
-          port: 587,
-          secure: false,
-          username: 'connect@codrix.co.in',
-          password: '',
-          fromName: 'CodRix Official',
-          fromEmail: 'connect@codrix.co.in',
-          status: 'NOT_CONFIGURED'
-        },
-        imap: {
-          host: 'imap.gmail.com',
-          port: 993,
-          secure: true,
-          username: 'connect@codrix.co.in',
-          password: '',
-          syncIntervalMinutes: 5,
-          status: 'NOT_CONFIGURED'
-        },
-        transactional: {
-          provider: 'RESEND',
-          apiKey: '',
-          fromName: 'CodRix Notifications',
-          fromEmail: 'connect@codrix.co.in',
-          status: 'NOT_CONFIGURED'
-        },
-        webhook: {
-          enabled: true,
-          endpointUrl: `http://localhost:5000/api/v1/mailboxes/webhook/inbound`,
-          signingSecret: `cdx_sec_${Math.random().toString(36).substring(2, 12)}`
-        },
-        updatedAt: new Date(),
-        updatedBy: req.auth!.user.fullName
-      };
-      const ins = await cols.tenantEmailConfigs.insertOne(newConfig as any);
-      config = { ...newConfig, _id: ins.insertedId };
-    }
-
-    // Mask sensitive passwords before sending to client
-    const safeConfig = {
-      ...config,
-      smtp: {
-        ...config.smtp,
-        hasPassword: Boolean(config.smtp?.password),
-        password: config.smtp?.password ? '••••••••' : ''
-      },
-      imap: {
-        ...config.imap,
-        hasPassword: Boolean(config.imap?.password),
-        password: config.imap?.password ? '••••••••' : ''
-      },
-      transactional: {
-        ...config.transactional,
-        hasApiKey: Boolean(config.transactional?.apiKey),
-        apiKey: config.transactional?.apiKey ? '••••••••' : ''
-      }
-    };
-
-    res.json({ data: safeConfig });
-  } catch (err: any) {
-    res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
-  }
-});
-
 // Helper to sync channels into authorized mailbox connections
-async function syncMailboxChannel(cols: any, tenantId: string, address: string, displayName: string, provider: string = 'CUSTOM_DOMAIN') {
+async function syncMailboxChannel(cols: any, tenantId: string, address: string, displayName: string, provider: string = 'RESEND') {
   if (!address || !address.includes('@')) return null;
   const normalized = address.toLowerCase().trim();
   await cols.mailboxConnections.updateOne(
@@ -122,6 +44,46 @@ async function syncMailboxChannel(cols: any, tenantId: string, address: string, 
   return normalized;
 }
 
+// GET /api/v1/settings/email
+router.get('/email', requireAuth, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const cols = getCollections();
+    const tenantId = req.auth!.user.tenantId;
+
+    let config: any = await cols.tenantEmailConfigs.findOne({ tenantId }) ||
+                      await cols.tenantEmailConfigs.findOne({});
+
+    const apiKey = process.env.RESEND_API_KEY || config?.transactional?.apiKey || config?.resend?.apiKey || '';
+
+    const safeConfig = {
+      tenantId,
+      domain: config?.domain || 'codrix.co.in',
+      activeMethod: 'RESEND',
+      resend: {
+        apiKey: apiKey ? '••••••••' : '',
+        hasApiKey: Boolean(apiKey),
+        fromName: config?.resend?.fromName || config?.transactional?.fromName || 'Codrix Private Limited',
+        fromEmail: config?.resend?.fromEmail || config?.transactional?.fromEmail || 'connect@codrix.co.in',
+        status: apiKey ? 'CONNECTED' : 'NOT_CONFIGURED',
+        domain: config?.domain || 'codrix.co.in'
+      },
+      transactional: {
+        provider: 'RESEND',
+        apiKey: apiKey ? '••••••••' : '',
+        hasApiKey: Boolean(apiKey),
+        fromName: config?.transactional?.fromName || config?.resend?.fromName || 'Codrix Private Limited',
+        fromEmail: config?.transactional?.fromEmail || config?.resend?.fromEmail || 'connect@codrix.co.in',
+        status: apiKey ? 'CONNECTED' : 'NOT_CONFIGURED'
+      },
+      updatedAt: config?.updatedAt || new Date()
+    };
+
+    res.json({ data: safeConfig });
+  } catch (err: any) {
+    res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
 // POST /api/v1/settings/email
 router.post('/email', requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
@@ -131,54 +93,32 @@ router.post('/email', requireAuth, requireAdmin, async (req: Request, res: Respo
 
     const existing = await cols.tenantEmailConfigs.findOne({ tenantId });
 
-    // Handle password masking: don't overwrite with '••••••••' if unchanged
-    const smtpPassword = body.smtp?.password === '••••••••' || !body.smtp?.password
-      ? existing?.smtp?.password || ''
-      : body.smtp.password;
+    const inputApiKey = body.resend?.apiKey || body.transactional?.apiKey || body.apiKey;
+    const resolvedApiKey = (inputApiKey === '••••••••' || !inputApiKey)
+      ? existing?.transactional?.apiKey || existing?.resend?.apiKey || process.env.RESEND_API_KEY || ''
+      : inputApiKey;
 
-    const imapPassword = body.imap?.password === '••••••••' || !body.imap?.password
-      ? existing?.imap?.password || ''
-      : body.imap.password;
-
-    const transactionalApiKey = body.transactional?.apiKey === '••••••••' || !body.transactional?.apiKey
-      ? existing?.transactional?.apiKey || ''
-      : body.transactional.apiKey;
+    const fromName = body.resend?.fromName || body.transactional?.fromName || body.fromName || 'Codrix Private Limited';
+    const fromEmail = body.resend?.fromEmail || body.transactional?.fromEmail || body.fromEmail || 'connect@codrix.co.in';
+    const domain = body.domain || existing?.domain || 'codrix.co.in';
 
     const updateDoc = {
       tenantId,
-      activeMethod: body.activeMethod || existing?.activeMethod || 'SMTP_IMAP',
-      domain: body.domain || existing?.domain || 'codrix.co.in',
-      smtp: {
-        host: body.smtp?.host || '',
-        port: Number(body.smtp?.port) || 587,
-        secure: Boolean(body.smtp?.secure),
-        username: body.smtp?.username || '',
-        password: smtpPassword,
-        fromName: body.smtp?.fromName || 'CodRix Official',
-        fromEmail: body.smtp?.fromEmail || body.smtp?.username || 'connect@codrix.co.in',
-        status: smtpPassword ? 'CONNECTED' : 'NOT_CONFIGURED',
-        lastTestedAt: body.smtp?.lastTestedAt || existing?.smtp?.lastTestedAt
-      },
-      imap: {
-        host: body.imap?.host || '',
-        port: Number(body.imap?.port) || 993,
-        secure: Boolean(body.imap?.secure),
-        username: body.imap?.username || '',
-        password: imapPassword,
-        syncIntervalMinutes: Number(body.imap?.syncIntervalMinutes) || 5,
-        status: imapPassword ? 'CONNECTED' : 'NOT_CONFIGURED'
+      domain,
+      activeMethod: 'RESEND',
+      resend: {
+        apiKey: resolvedApiKey,
+        fromName,
+        fromEmail,
+        status: resolvedApiKey ? 'CONNECTED' : 'NOT_CONFIGURED',
+        domain
       },
       transactional: {
-        provider: body.transactional?.provider || 'RESEND',
-        apiKey: transactionalApiKey,
-        fromName: body.transactional?.fromName || 'CodRix Notifications',
-        fromEmail: body.transactional?.fromEmail || 'connect@codrix.co.in',
-        status: transactionalApiKey ? 'CONNECTED' : 'NOT_CONFIGURED'
-      },
-      webhook: {
-        enabled: Boolean(body.webhook?.enabled ?? true),
-        endpointUrl: body.webhook?.endpointUrl || `http://localhost:5000/api/v1/mailboxes/webhook/inbound`,
-        signingSecret: body.webhook?.signingSecret || existing?.webhook?.signingSecret || `cdx_sec_${Math.random().toString(36).substring(2, 12)}`
+        provider: 'RESEND',
+        apiKey: resolvedApiKey,
+        fromName,
+        fromEmail,
+        status: resolvedApiKey ? 'CONNECTED' : 'NOT_CONFIGURED'
       },
       updatedAt: new Date(),
       updatedBy: req.auth!.user.fullName
@@ -190,24 +130,8 @@ router.post('/email', requireAuth, requireAdmin, async (req: Request, res: Respo
       { upsert: true }
     );
 
-    // Synchronize company connected channels in MongoDB Atlas
-    if (updateDoc.smtp.fromEmail || updateDoc.smtp.username) {
-      await syncMailboxChannel(
-        cols,
-        tenantId,
-        updateDoc.smtp.fromEmail || updateDoc.smtp.username,
-        updateDoc.smtp.fromName || 'CodRix Official',
-        'CUSTOM_DOMAIN'
-      );
-    }
-    if (updateDoc.transactional.fromEmail) {
-      await syncMailboxChannel(
-        cols,
-        tenantId,
-        updateDoc.transactional.fromEmail,
-        updateDoc.transactional.fromName || 'CodRix Notifications',
-        updateDoc.transactional.provider
-      );
+    if (fromEmail) {
+      await syncMailboxChannel(cols, tenantId, fromEmail, fromName, 'RESEND');
     }
 
     await AuditService.log({
@@ -216,216 +140,43 @@ router.post('/email', requireAuth, requireAdmin, async (req: Request, res: Respo
       resourceType: 'TENANT_SETTINGS',
       resourceId: tenantId,
       details: {
-        activeMethod: updateDoc.activeMethod,
-        domain: updateDoc.domain,
-        smtpHost: updateDoc.smtp.host,
-        smtpUser: updateDoc.smtp.username
+        provider: 'RESEND',
+        domain,
+        fromEmail,
+        fromName
       }
     });
 
-    res.json({ data: { message: 'Company email settings saved and synchronized with Connected Channels in MongoDB Atlas!' } });
+    res.json({ data: { message: 'Resend Enterprise Email Engine settings saved and synchronized successfully!' } });
   } catch (err: any) {
     res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
   }
 });
 
-// POST /api/v1/settings/email/smtp (Dedicated Outbound SMTP Save & Channel Sync)
-router.post('/email/smtp', requireAuth, requireAdmin, async (req: Request, res: Response) => {
+// POST /api/v1/settings/email/verify-resend
+router.post('/email/verify-resend', requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
+    const { apiKey } = req.body;
     const cols = getCollections();
     const tenantId = req.auth!.user.tenantId;
-    const { host, port, secure, username, password, fromName, fromEmail } = req.body;
 
-    if (!host || !username) {
-      res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'SMTP host and username are required.' } });
+    let keyToTest = apiKey;
+    if (keyToTest === '••••••••' || !keyToTest) {
+      const existing = await cols.tenantEmailConfigs.findOne({ tenantId });
+      keyToTest = existing?.transactional?.apiKey || existing?.resend?.apiKey || process.env.RESEND_API_KEY || '';
+    }
+
+    if (!keyToTest) {
+      res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Resend API Key is required to verify.' } });
       return;
     }
 
-    const existing = await cols.tenantEmailConfigs.findOne({ tenantId });
-    const smtpPassword = (password === '••••••••' || !password)
-      ? existing?.smtp?.password || ''
-      : password;
-
-    const smtpDoc = {
-      host: host.trim(),
-      port: Number(port) || 587,
-      secure: Boolean(secure),
-      username: username.trim(),
-      password: smtpPassword,
-      fromName: fromName ? fromName.trim() : 'CodRix Official',
-      fromEmail: (fromEmail || username).trim(),
-      status: smtpPassword ? 'CONNECTED' : 'NOT_CONFIGURED',
-      updatedAt: new Date()
-    };
-
-    await cols.tenantEmailConfigs.updateOne(
-      { tenantId },
-      {
-        $set: {
-          smtp: smtpDoc,
-          activeMethod: 'SMTP_IMAP',
-          updatedAt: new Date(),
-          updatedBy: req.auth!.user.fullName
-        }
-      },
-      { upsert: true }
-    );
-
-    // Directly register and link this channel in Authorized Company Connected Channels (mailboxConnections)
-    const channelAddress = await syncMailboxChannel(
-      cols,
-      tenantId,
-      smtpDoc.fromEmail || smtpDoc.username,
-      smtpDoc.fromName,
-      'CUSTOM_DOMAIN'
-    );
-
-    await AuditService.log({
-      user: req.auth!.user,
-      action: 'SMTP_CONFIG_UPDATE',
-      resourceType: 'TENANT_SETTINGS',
-      resourceId: tenantId,
-      details: { host: smtpDoc.host, username: smtpDoc.username, channelAddress }
-    });
-
-    res.json({
-      data: {
-        success: true,
-        message: `Outbound SMTP Server saved & linked to Authorized Company Channels (${channelAddress})!`,
-        channelAddress
-      }
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
-  }
-});
-
-// POST /api/v1/settings/email/imap (Dedicated Inbound IMAP Save & Channel Sync)
-router.post('/email/imap', requireAuth, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const cols = getCollections();
-    const tenantId = req.auth!.user.tenantId;
-    const { host, port, secure, username, password, syncIntervalMinutes } = req.body;
-
-    const existing = await cols.tenantEmailConfigs.findOne({ tenantId });
-    const imapPassword = (password === '••••••••' || !password)
-      ? existing?.imap?.password || ''
-      : password;
-
-    const imapDoc = {
-      host: (host || 'imap.gmail.com').trim(),
-      port: Number(port) || 993,
-      secure: Boolean(secure ?? true),
-      username: (username || '').trim(),
-      password: imapPassword,
-      syncIntervalMinutes: Number(syncIntervalMinutes) || 5,
-      status: imapPassword ? 'CONNECTED' : 'NOT_CONFIGURED',
-      updatedAt: new Date()
-    };
-
-    await cols.tenantEmailConfigs.updateOne(
-      { tenantId },
-      {
-        $set: {
-          imap: imapDoc,
-          updatedAt: new Date(),
-          updatedBy: req.auth!.user.fullName
-        }
-      },
-      { upsert: true }
-    );
-
-    if (imapDoc.username) {
-      await syncMailboxChannel(cols, tenantId, imapDoc.username, 'CodRix Inbox', 'CUSTOM_DOMAIN');
+    const result = await EmailDispatcher.verifyResend(keyToTest);
+    if (result.valid) {
+      res.json({ data: { success: true, message: result.message, domains: result.domains } });
+    } else {
+      res.status(400).json({ error: { code: 'VERIFICATION_FAILED', message: result.message } });
     }
-
-    res.json({
-      data: {
-        success: true,
-        message: 'Inbound IMAP Server settings saved & synchronized with Authorized Company Channels!'
-      }
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
-  }
-});
-
-// POST /api/v1/settings/email/transactional (Dedicated Transactional Gateway Save & Channel Sync)
-router.post('/email/transactional', requireAuth, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const cols = getCollections();
-    const tenantId = req.auth!.user.tenantId;
-    const { provider, apiKey, fromName, fromEmail } = req.body;
-
-    const existing = await cols.tenantEmailConfigs.findOne({ tenantId });
-    const finalApiKey = (apiKey === '••••••••' || !apiKey)
-      ? existing?.transactional?.apiKey || ''
-      : apiKey;
-
-    const transDoc = {
-      provider: provider || 'RESEND',
-      apiKey: finalApiKey,
-      fromName: fromName || 'CodRix Notifications',
-      fromEmail: fromEmail || 'connect@codrix.co.in',
-      status: finalApiKey ? 'CONNECTED' : 'NOT_CONFIGURED',
-      updatedAt: new Date()
-    };
-
-    await cols.tenantEmailConfigs.updateOne(
-      { tenantId },
-      {
-        $set: {
-          transactional: transDoc,
-          activeMethod: 'TRANSACTIONAL_API',
-          updatedAt: new Date(),
-          updatedBy: req.auth!.user.fullName
-        }
-      },
-      { upsert: true }
-    );
-
-    if (transDoc.fromEmail) {
-      await syncMailboxChannel(cols, tenantId, transDoc.fromEmail, transDoc.fromName, transDoc.provider);
-    }
-
-    res.json({
-      data: {
-        success: true,
-        message: `Transactional API Gateway (${transDoc.provider}) saved and connected to Authorized Channels!`
-      }
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
-  }
-});
-
-// POST /api/v1/settings/email/webhook (Dedicated Inbound Webhook Save)
-router.post('/email/webhook', requireAuth, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const cols = getCollections();
-    const tenantId = req.auth!.user.tenantId;
-    const { endpointUrl, signingSecret } = req.body;
-
-    await cols.tenantEmailConfigs.updateOne(
-      { tenantId },
-      {
-        $set: {
-          'webhook.endpointUrl': endpointUrl,
-          'webhook.signingSecret': signingSecret,
-          activeMethod: 'INBOUND_WEBHOOK',
-          updatedAt: new Date(),
-          updatedBy: req.auth!.user.fullName
-        }
-      },
-      { upsert: true }
-    );
-
-    res.json({
-      data: {
-        success: true,
-        message: 'Inbound Webhook routing & DNS settings saved successfully!'
-      }
-    });
   } catch (err: any) {
     res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
   }
@@ -437,30 +188,28 @@ router.post('/email/sync-channels', requireAuth, requireAdmin, async (req: Reque
     const cols = getCollections();
     const tenantId = req.auth!.user.tenantId;
 
-    const config = await cols.tenantEmailConfigs.findOne({ tenantId });
+    const config = await cols.tenantEmailConfigs.findOne({ tenantId }) ||
+                   await cols.tenantEmailConfigs.findOne({});
     const synced: string[] = [];
 
     // Core company channels
     const defaults = [
-      { addr: 'connect@codrix.co.in', name: 'CodRix Official (Connect)' },
-      { addr: 'careers@codrix.co.in', name: 'CodRix Careers & Hiring' },
-      { addr: 'sales@codrix.co.in', name: 'CodRix Enterprise Sales' },
-      { addr: 'support@codrix.co.in', name: 'CodRix Client Support' }
+      { addr: 'connect@codrix.co.in', name: 'Codrix Official (Connect)' },
+      { addr: 'careers@codrix.co.in', name: 'Codrix Careers & Talent Acquisition' },
+      { addr: 'sales@codrix.co.in', name: 'Codrix Enterprise Sales' },
+      { addr: 'support@codrix.co.in', name: 'Codrix Client Support' }
     ];
 
     for (const d of defaults) {
-      await syncMailboxChannel(cols, tenantId, d.addr, d.name, 'CUSTOM_DOMAIN');
+      await syncMailboxChannel(cols, tenantId, d.addr, d.name, 'RESEND');
       synced.push(d.addr);
     }
 
-    if (config?.smtp?.fromEmail) {
-      await syncMailboxChannel(cols, tenantId, config.smtp.fromEmail, config.smtp.fromName || 'CodRix Official', 'CUSTOM_DOMAIN');
-      if (!synced.includes(config.smtp.fromEmail)) synced.push(config.smtp.fromEmail);
-    }
-
-    if (config?.transactional?.fromEmail) {
-      await syncMailboxChannel(cols, tenantId, config.transactional.fromEmail, config.transactional.fromName || 'CodRix Notifications', config.transactional.provider);
-      if (!synced.includes(config.transactional.fromEmail)) synced.push(config.transactional.fromEmail);
+    const fromEmail = config?.resend?.fromEmail || config?.transactional?.fromEmail;
+    const fromName = config?.resend?.fromName || config?.transactional?.fromName || 'Codrix Private Limited';
+    if (fromEmail) {
+      await syncMailboxChannel(cols, tenantId, fromEmail, fromName, 'RESEND');
+      if (!synced.includes(fromEmail)) synced.push(fromEmail);
     }
 
     const channels = await cols.mailboxConnections.find({ tenantId }).toArray();
@@ -473,50 +222,6 @@ router.post('/email/sync-channels', requireAuth, requireAdmin, async (req: Reque
         channels: channels.map(c => ({ ...c, id: c._id.toString() }))
       }
     });
-  } catch (err: any) {
-    res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
-  }
-});
-
-// POST /api/v1/settings/email/verify-smtp
-router.post('/email/verify-smtp', requireAuth, requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const { host, port, secure, username, password } = req.body;
-    const cols = getCollections();
-    const tenantId = req.auth!.user.tenantId;
-
-    let testPassword = password;
-    if (testPassword === '••••••••' || !testPassword) {
-      const existing = await cols.tenantEmailConfigs.findOne({ tenantId });
-      testPassword = existing?.smtp?.password || '';
-    }
-
-    if (!host || !username || !testPassword) {
-      res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Host, username and password are required to test SMTP.' } });
-      return;
-    }
-
-    const result = await EmailDispatcher.verifySmtp({
-      host,
-      port: Number(port) || 587,
-      secure: Boolean(secure),
-      username,
-      password: testPassword
-    });
-
-    if (result.valid) {
-      await cols.tenantEmailConfigs.updateOne(
-        { tenantId },
-        { $set: { 'smtp.status': 'CONNECTED', 'smtp.lastTestedAt': new Date() } }
-      );
-      res.json({ data: { success: true, message: result.message } });
-    } else {
-      await cols.tenantEmailConfigs.updateOne(
-        { tenantId },
-        { $set: { 'smtp.status': 'ERROR', 'smtp.lastError': result.message } }
-      );
-      res.status(400).json({ error: { code: 'SMTP_ERROR', message: result.message } });
-    }
   } catch (err: any) {
     res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
   }
@@ -536,25 +241,35 @@ router.post('/email/test-send', requireAuth, requireAdmin, async (req: Request, 
     const result = await EmailDispatcher.send({
       tenantId,
       to: targetEmail,
-      subject: '✅ CodRix Enterprise OS — Company Domain Email Link Verified',
-      text: `Hello,\n\nThis is a verification email from CodRix Multi-Tenant OS. Your company domain email routing and outbound dispatch have been connected successfully.\n\nTime: ${new Date().toLocaleString()}\nSender: ${req.auth!.user.fullName}`,
+      subject: '✅ Codrix Enterprise OS — Resend Email Engine Verified',
+      text: `Hello,\n\nThis is a verification email from Codrix Enterprise OS.\n\nYour outbound email delivery via Resend HTTPS REST API (Port 443) on verified domain codrix.co.in is connected and operational.\n\nTime: ${new Date().toLocaleString()}\nSender: ${req.auth!.user.fullName}`,
       html: `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: auto; padding: 24px; border: 1px solid #E7E0FB; border-radius: 16px; background-color: #FBFBFE;">
-          <h2 style="color: #120E24; margin-bottom: 8px;">CodRix Enterprise OS</h2>
-          <div style="background-color: #EDE4FF; padding: 12px 16px; border-radius: 8px; color: #7C2CF5; font-weight: bold; margin-bottom: 16px;">
-            ✅ Company Domain Email Linked Successfully
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: auto; padding: 28px; border: 1px solid #E7E0FB; border-radius: 16px; background-color: #FBFBFE;">
+          <div style="display: flex; align-items: center; margin-bottom: 20px;">
+            <h2 style="color: #120E24; margin: 0; font-size: 22px; font-weight: 800;">Codrix Enterprise OS</h2>
           </div>
-          <p style="color: #585172; font-size: 14px; line-height: 1.6;">
-            Your company domain email dispatch has been verified end-to-end. Outbound emails and unified shared mailboxes can now send and receive messages under your official brand domain.
+          <div style="background: linear-gradient(135deg, #7C2CF5 0%, #4F1285 100%); padding: 16px 20px; border-radius: 12px; color: #FFFFFF; font-weight: bold; margin-bottom: 20px;">
+            ✨ Official Domain Email Connected Successfully (Resend Engine)
+          </div>
+          <p style="color: #120E24; font-size: 14px; line-height: 1.6; font-weight: 600;">
+            Outbound email dispatch has been verified end-to-end via Resend HTTPS REST API (Port 443).
           </p>
-          <hr style="border: none; border-top: 1px solid #E7E0FB; margin: 20px 0;" />
-          <p style="color: #585172; font-size: 12px;">Sent by <strong>${req.auth!.user.fullName}</strong> (${req.auth!.user.email}) at ${new Date().toLocaleString()}</p>
+          <ul style="color: #585172; font-size: 13px; line-height: 1.8; padding-left: 20px;">
+            <li><strong>Verified Domain:</strong> codrix.co.in (DKIM & SPF Active)</li>
+            <li><strong>Authorized Sender:</strong> connect@codrix.co.in</li>
+            <li><strong>Cloud Port Status:</strong> 100% Unblocked (Port 443 HTTPS)</li>
+            <li><strong>Branding:</strong> 100% White-Labeled (Zero watermarks)</li>
+          </ul>
+          <hr style="border: none; border-top: 1px solid #E7E0FB; margin: 24px 0;" />
+          <p style="color: #585172; font-size: 12px; margin: 0;">
+            Dispatched by <strong>${req.auth!.user.fullName}</strong> (${req.auth!.user.email}) at ${new Date().toLocaleString()}
+          </p>
         </div>
       `
     });
 
     if (result.success) {
-      res.json({ data: { success: true, message: `Test email dispatched via ${result.deliveryMethod}`, messageId: result.messageId } });
+      res.json({ data: { success: true, message: `Live test email dispatched successfully via ${result.deliveryMethod}!`, messageId: result.messageId } });
     } else {
       res.status(400).json({ error: { code: 'SEND_FAILED', message: result.error || 'Failed to dispatch test email.' } });
     }
@@ -577,7 +292,7 @@ router.post('/mailboxes', requireAuth, requireAdmin, async (req: Request, res: R
 
     const doc = {
       tenantId,
-      provider: 'CUSTOM_DOMAIN',
+      provider: 'RESEND',
       mailboxAddress,
       displayName,
       mailboxType,

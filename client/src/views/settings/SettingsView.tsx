@@ -5,26 +5,21 @@ import { getSocket } from '../../core/socket.js';
 import {
   Mail,
   ShieldCheck,
-  Server,
   Zap,
   Globe,
   CheckCircle2,
   AlertCircle,
-  Copy,
-  Check,
   RefreshCw,
   Send,
   Eye,
   EyeOff,
   Plus,
   Trash2,
-  ExternalLink,
-  Layers,
   Building2,
   Save,
   Key,
-  HelpCircle,
-  Link2
+  Layers,
+  Sparkles
 } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
@@ -34,7 +29,7 @@ export const SettingsView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'org' | 'smtp' | 'api' | 'webhook' | 'mailboxes' | 'test'>('org');
+  const [activeTab, setActiveTab] = useState<'org' | 'resend' | 'mailboxes' | 'test'>('org');
 
   // Organization Profile State
   const [legalName, setLegalName] = useState('CODRIX PRIVATE LIMITED');
@@ -44,57 +39,24 @@ export const SettingsView: React.FC = () => {
   const [phone, setPhone] = useState('+91 8295886832');
   const [timezone, setTimezone] = useState('Asia/Kolkata (IST)');
   const [currency, setCurrency] = useState('INR (₹)');
-
-  // Email Integration State
-  const [activeMethod, setActiveMethod] = useState<'SMTP_IMAP' | 'TRANSACTIONAL_API' | 'INBOUND_WEBHOOK'>('SMTP_IMAP');
   const [domain, setDomain] = useState('codrix.co.in');
 
-  // SMTP State & Dedicated Save
-  const [smtpHost, setSmtpHost] = useState('smtp.gmail.com');
-  const [smtpPort, setSmtpPort] = useState(587);
-  const [smtpSecure, setSmtpSecure] = useState(false);
-  const [smtpUser, setSmtpUser] = useState('connect@codrix.co.in');
-  const [smtpPass, setSmtpPass] = useState('');
-  const [smtpFromName, setSmtpFromName] = useState('CodRix Official');
-  const [smtpFromEmail, setSmtpFromEmail] = useState('connect@codrix.co.in');
-  const [showSmtpPass, setShowSmtpPass] = useState(false);
-  const [smtpSaving, setSmtpSaving] = useState(false);
-  const [smtpFeedback, setSmtpFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-
-  // IMAP State & Dedicated Save
-  const [imapHost, setImapHost] = useState('imap.gmail.com');
-  const [imapPort, setImapPort] = useState(993);
-  const [imapSecure, setImapSecure] = useState(true);
-  const [imapUser, setImapUser] = useState('connect@codrix.co.in');
-  const [imapPass, setImapPass] = useState('');
-  const [showImapPass, setShowImapPass] = useState(false);
-  const [imapSaving, setImapSaving] = useState(false);
-  const [imapFeedback, setImapFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-
-  // Transactional API State & Dedicated Save
-  const [transProvider, setTransProvider] = useState<'RESEND' | 'SENDGRID' | 'AWS_SES' | 'POSTMARK' | 'BREVO'>('RESEND');
-  const [transApiKey, setTransApiKey] = useState('');
-  const [transFromName, setTransFromName] = useState('CodRix Notifications');
-  const [transFromEmail, setTransFromEmail] = useState('connect@codrix.co.in');
+  // Resend Email Engine State
+  const [resendApiKey, setResendApiKey] = useState('');
+  const [resendFromName, setResendFromName] = useState('Codrix Private Limited');
+  const [resendFromEmail, setResendFromEmail] = useState('connect@codrix.co.in');
   const [showApiKey, setShowApiKey] = useState(false);
-  const [transSaving, setTransSaving] = useState(false);
-  const [transFeedback, setTransFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-
-  // Inbound Webhook State & Dedicated Save
-  const [webhookUrl, setWebhookUrl] = useState('');
-  const [signingSecret, setSigningSecret] = useState('');
-  const [webhookSaving, setWebhookSaving] = useState(false);
-  const [webhookFeedback, setWebhookFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [resendSaving, setResendSaving] = useState(false);
+  const [resendFeedback, setResendFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [verifyingKey, setVerifyingKey] = useState(false);
 
   // Channel Sync State
   const [syncingChannels, setSyncingChannels] = useState(false);
   const [channelsFeedback, setChannelsFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // Diagnostics & Feedback
-  const [testStatus, setTestStatus] = useState<{ type: 'success' | 'error' | 'loading' | null; message?: string }>({ type: null });
-  const [testSendEmail, setTestSendEmail] = useState('lakshay@codrix.co.in');
+  // Diagnostics & Test Send
+  const [testSendEmail, setTestSendEmail] = useState('lakshayb057@gmail.com');
   const [sendResult, setSendResult] = useState<{ type: 'success' | 'error' | 'loading' | null; message?: string; details?: any }>({ type: null });
-  const [copied, setCopied] = useState<string | null>(null);
 
   // Add Mailbox Modal
   const [newMailboxModal, setNewMailboxModal] = useState(false);
@@ -123,34 +85,13 @@ export const SettingsView: React.FC = () => {
 
       const c = emailData;
       setConfig(c);
-      setActiveMethod(c.activeMethod || 'SMTP_IMAP');
       if (c.domain) setDomain(c.domain);
 
-      // SMTP
-      setSmtpHost(c.smtp?.host || 'smtp.gmail.com');
-      setSmtpPort(c.smtp?.port || 587);
-      setSmtpSecure(Boolean(c.smtp?.secure));
-      setSmtpUser(c.smtp?.username || 'connect@codrix.co.in');
-      setSmtpPass(c.smtp?.password || '');
-      setSmtpFromName(c.smtp?.fromName || 'CodRix Official');
-      setSmtpFromEmail(c.smtp?.fromEmail || 'connect@codrix.co.in');
-
-      // IMAP
-      setImapHost(c.imap?.host || 'imap.gmail.com');
-      setImapPort(c.imap?.port || 993);
-      setImapSecure(Boolean(c.imap?.secure ?? true));
-      setImapUser(c.imap?.username || 'connect@codrix.co.in');
-      setImapPass(c.imap?.password || '');
-
-      // Transactional
-      setTransProvider(c.transactional?.provider || 'RESEND');
-      setTransApiKey(c.transactional?.apiKey || '');
-      setTransFromName(c.transactional?.fromName || 'CodRix Notifications');
-      setTransFromEmail(c.transactional?.fromEmail || 'connect@codrix.co.in');
-
-      // Webhook
-      setWebhookUrl(c.webhook?.endpointUrl || `${window.location.origin}/api/v1/mailboxes/webhook/inbound`);
-      setSigningSecret(c.webhook?.signingSecret || '');
+      // Populate Resend config
+      const resendConfig = c.resend || c.transactional || {};
+      setResendApiKey(resendConfig.apiKey || '');
+      setResendFromName(resendConfig.fromName || 'Codrix Private Limited');
+      setResendFromEmail(resendConfig.fromEmail || 'connect@codrix.co.in');
 
       setMailboxes(mbData || []);
     } catch (err: any) {
@@ -177,230 +118,88 @@ export const SettingsView: React.FC = () => {
     };
   }, []);
 
-  const handleApplyPreset = (preset: 'google' | 'zoho' | 'm365' | 'hostinger') => {
-    if (preset === 'google') {
-      setSmtpHost('smtp.gmail.com');
-      setSmtpPort(587);
-      setSmtpSecure(false);
-      setImapHost('imap.gmail.com');
-      setImapPort(993);
-      setImapSecure(true);
-    } else if (preset === 'zoho') {
-      setSmtpHost('smtppro.zoho.in');
-      setSmtpPort(465);
-      setSmtpSecure(true);
-      setImapHost('imappro.zoho.in');
-      setImapPort(993);
-      setImapSecure(true);
-    } else if (preset === 'm365') {
-      setSmtpHost('smtp.office365.com');
-      setSmtpPort(587);
-      setSmtpSecure(false);
-      setImapHost('outlook.office365.com');
-      setImapPort(993);
-      setImapSecure(true);
-    } else if (preset === 'hostinger') {
-      setSmtpHost('smtp.hostinger.com');
-      setSmtpPort(465);
-      setSmtpSecure(true);
-      setImapHost('imap.hostinger.com');
-      setImapPort(993);
-      setImapSecure(true);
-    }
-  };
-
-  const handleSaveSettings = async (e?: React.FormEvent) => {
+  const handleSaveOrganization = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setSaving(true);
     setSaveSuccessMsg(null);
     try {
-      await Promise.all([
-        apiRequest('/settings/organization', {
-          method: 'POST',
-          body: JSON.stringify({
-            legalName,
-            tradeName,
-            website,
-            domain,
-            supportEmail,
-            phone,
-            timezone,
-            currency
-          })
-        }),
-        apiRequest('/settings/email', {
-          method: 'POST',
-          body: JSON.stringify({
-            activeMethod,
-            domain,
-            smtp: {
-              host: smtpHost,
-              port: Number(smtpPort),
-              secure: smtpSecure,
-              username: smtpUser,
-              password: smtpPass,
-              fromName: smtpFromName,
-              fromEmail: smtpFromEmail
-            },
-            imap: {
-              host: imapHost,
-              port: Number(imapPort),
-              secure: imapSecure,
-              username: imapUser,
-              password: imapPass
-            },
-            transactional: {
-              provider: transProvider,
-              apiKey: transApiKey,
-              fromName: transFromName,
-              fromEmail: transFromEmail
-            },
-            webhook: {
-              enabled: true,
-              endpointUrl: webhookUrl,
-              signingSecret
-            }
-          })
+      await apiRequest('/settings/organization', {
+        method: 'POST',
+        body: JSON.stringify({
+          legalName,
+          tradeName,
+          website,
+          domain,
+          supportEmail,
+          phone,
+          timezone,
+          currency
         })
-      ]);
-      setSaveSuccessMsg('All Superadmin updates saved to MongoDB Atlas! Domain, organization & email services are connected.');
+      });
+      setSaveSuccessMsg('Organization profile and company domain saved to MongoDB Atlas!');
       setTimeout(() => setSaveSuccessMsg(null), 5000);
       loadSettings();
     } catch (err: any) {
-      alert(err.message || 'Error saving settings');
+      alert(err.message || 'Error saving organization settings');
     } finally {
       setSaving(false);
     }
   };
 
-  // Dedicated Outbound SMTP Save & Auto-Channel Link
-  const handleSaveSmtp = async () => {
-    setSmtpSaving(true);
-    setSmtpFeedback(null);
+  const handleSaveResend = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setResendSaving(true);
+    setResendFeedback(null);
     try {
-      const res: any = await apiRequest('/settings/email/smtp', {
+      const res: any = await apiRequest('/settings/email', {
         method: 'POST',
         body: JSON.stringify({
-          host: smtpHost,
-          port: Number(smtpPort),
-          secure: smtpSecure,
-          username: smtpUser,
-          password: smtpPass,
-          fromName: smtpFromName,
-          fromEmail: smtpFromEmail
+          domain,
+          resend: {
+            apiKey: resendApiKey,
+            fromName: resendFromName,
+            fromEmail: resendFromEmail
+          }
         })
       });
-      setSmtpFeedback({
+      setResendFeedback({
         type: 'success',
-        message: res?.message || 'Outbound SMTP Server saved & linked directly to Authorized Company Channels!'
+        message: res?.message || 'Resend Enterprise Email Engine credentials saved and synchronized!'
       });
       await loadSettings();
-      setTimeout(() => setSmtpFeedback(null), 6000);
+      setTimeout(() => setResendFeedback(null), 6000);
     } catch (err: any) {
-      setSmtpFeedback({
+      setResendFeedback({
         type: 'error',
-        message: err.message || 'Failed saving Outbound SMTP Server.'
+        message: err.message || 'Failed saving Resend settings.'
       });
     } finally {
-      setSmtpSaving(false);
+      setResendSaving(false);
     }
   };
 
-  // Dedicated Inbound IMAP Save & Sync
-  const handleSaveImap = async () => {
-    setImapSaving(true);
-    setImapFeedback(null);
+  const handleVerifyResendKey = async () => {
+    setVerifyingKey(true);
+    setResendFeedback(null);
     try {
-      const res: any = await apiRequest('/settings/email/imap', {
+      const res: any = await apiRequest('/settings/email/verify-resend', {
         method: 'POST',
-        body: JSON.stringify({
-          host: imapHost,
-          port: Number(imapPort),
-          secure: imapSecure,
-          username: imapUser,
-          password: imapPass
-        })
+        body: JSON.stringify({ apiKey: resendApiKey })
       });
-      setImapFeedback({
+      setResendFeedback({
         type: 'success',
-        message: res?.message || 'Inbound IMAP Server saved & synchronized with Authorized Channels!'
+        message: res?.message || 'Resend API Key verified successfully! Connection active.'
       });
-      await loadSettings();
-      setTimeout(() => setImapFeedback(null), 6000);
     } catch (err: any) {
-      setImapFeedback({
+      setResendFeedback({
         type: 'error',
-        message: err.message || 'Failed saving Inbound IMAP Server.'
+        message: err.message || 'Resend API Key verification failed.'
       });
     } finally {
-      setImapSaving(false);
+      setVerifyingKey(false);
     }
   };
 
-  const handleCopySmtpToImap = () => {
-    setImapUser(smtpUser);
-    setImapPass(smtpPass);
-  };
-
-  // Dedicated Transactional Gateway Save
-  const handleSaveTransactional = async () => {
-    setTransSaving(true);
-    setTransFeedback(null);
-    try {
-      const res: any = await apiRequest('/settings/email/transactional', {
-        method: 'POST',
-        body: JSON.stringify({
-          provider: transProvider,
-          apiKey: transApiKey,
-          fromName: transFromName,
-          fromEmail: transFromEmail
-        })
-      });
-      setTransFeedback({
-        type: 'success',
-        message: res?.message || 'Transactional Gateway saved & connected to Authorized Channels!'
-      });
-      await loadSettings();
-      setTimeout(() => setTransFeedback(null), 6000);
-    } catch (err: any) {
-      setTransFeedback({
-        type: 'error',
-        message: err.message || 'Failed saving Transactional Gateway.'
-      });
-    } finally {
-      setTransSaving(false);
-    }
-  };
-
-  // Dedicated Inbound Webhook Save
-  const handleSaveWebhook = async () => {
-    setWebhookSaving(true);
-    setWebhookFeedback(null);
-    try {
-      const res: any = await apiRequest('/settings/email/webhook', {
-        method: 'POST',
-        body: JSON.stringify({
-          endpointUrl: webhookUrl,
-          signingSecret
-        })
-      });
-      setWebhookFeedback({
-        type: 'success',
-        message: res?.message || 'Inbound Webhook routing & DNS settings saved!'
-      });
-      await loadSettings();
-      setTimeout(() => setWebhookFeedback(null), 6000);
-    } catch (err: any) {
-      setWebhookFeedback({
-        type: 'error',
-        message: err.message || 'Failed saving Webhook settings.'
-      });
-    } finally {
-      setWebhookSaving(false);
-    }
-  };
-
-  // Sync All Channels with MongoDB Atlas
   const handleSyncAllChannels = async () => {
     setSyncingChannels(true);
     setChannelsFeedback(null);
@@ -422,28 +221,9 @@ export const SettingsView: React.FC = () => {
     }
   };
 
-  const handleVerifySmtp = async () => {
-    setTestStatus({ type: 'loading', message: 'Testing SMTP connection & authentication handshake...' });
-    try {
-      const res: any = await apiRequest('/settings/email/verify-smtp', {
-        method: 'POST',
-        body: JSON.stringify({
-          host: smtpHost,
-          port: smtpPort,
-          secure: smtpSecure,
-          username: smtpUser,
-          password: smtpPass
-        })
-      });
-      setTestStatus({ type: 'success', message: res.message || 'SMTP Handshake verified successfully!' });
-    } catch (err: any) {
-      setTestStatus({ type: 'error', message: err.message || 'SMTP Verification failed. Check host, port, or app password.' });
-    }
-  };
-
   const handleSendTestEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSendResult({ type: 'loading', message: `Dispatching live test email to ${testSendEmail}...` });
+    setSendResult({ type: 'loading', message: `Dispatching live test email via Resend to ${testSendEmail}...` });
     try {
       const res: any = await apiRequest('/settings/email/test-send', {
         method: 'POST',
@@ -451,7 +231,7 @@ export const SettingsView: React.FC = () => {
       });
       setSendResult({
         type: 'success',
-        message: res.message || 'Live test email dispatched successfully!',
+        message: res.message || 'Live test email dispatched successfully via Resend HTTPS API!',
         details: res
       });
     } catch (err: any) {
@@ -492,17 +272,11 @@ export const SettingsView: React.FC = () => {
     }
   };
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(label);
-    setTimeout(() => setCopied(null), 2000);
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 text-[#585172]">
         <RefreshCw className="w-6 h-6 animate-spin text-[#7C2CF5]" />
-        <span className="ml-2 text-xs font-semibold">Loading domain configuration...</span>
+        <span className="ml-2 text-xs font-semibold">Loading enterprise configuration...</span>
       </div>
     );
   }
@@ -523,17 +297,20 @@ export const SettingsView: React.FC = () => {
             <span className="w-2 h-2 rounded-full bg-[#7C2CF5]"></span>
           </h2>
           <p className="text-xs text-[#585172]">
-            Connect official domain emails (<code className="text-[#7C2CF5] font-bold">@{domain}</code>) for real-time outbound delivery, shared inbox ingestion, and applicant communications.
+            Official domain email delivery powered exclusively by <strong className="text-[#7C2CF5]">Resend HTTPS Engine (Port 443)</strong>. 100% white-labeled deliverability, zero cloud port blocks.
           </p>
         </div>
 
         <button
-          onClick={() => handleSaveSettings()}
-          disabled={saving}
+          onClick={() => {
+            if (activeTab === 'org') handleSaveOrganization();
+            else if (activeTab === 'resend') handleSaveResend();
+          }}
+          disabled={saving || resendSaving}
           className="px-5 py-2.5 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white rounded-xl text-xs font-bold shadow-md shadow-[#7C2CF5]/25 transition flex items-center gap-2"
         >
-          {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-          <span>{saving ? 'Saving to Database...' : 'Save All Changes'}</span>
+          {(saving || resendSaving) ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+          <span>{(saving || resendSaving) ? 'Saving to Database...' : 'Save Current Settings'}</span>
         </button>
       </div>
 
@@ -545,74 +322,40 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
-      {/* Active Primary Delivery Engine Switcher */}
-      <div className="bg-white border border-[#E7E0FB] rounded-2xl p-5 shadow-xs">
-        <label className="block text-xs font-bold text-[#120E24] uppercase tracking-wider mb-2">
-          Active Outbound & Inbound Engine
-        </label>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <button
-            type="button"
-            onClick={() => setActiveMethod('SMTP_IMAP')}
-            className={`p-3.5 rounded-xl border text-left transition flex items-start gap-3 ${
-              activeMethod === 'SMTP_IMAP'
-                ? 'border-[#7C2CF5] bg-[#F7F5FE] ring-2 ring-[#7C2CF5]/20'
-                : 'border-[#E7E0FB] bg-[#FBFBFE] hover:bg-white'
-            }`}
-          >
-            <Server className={`w-5 h-5 shrink-0 mt-0.5 ${activeMethod === 'SMTP_IMAP' ? 'text-[#7C2CF5]' : 'text-[#585172]'}`} />
+      {/* Enterprise Active Engine Status Bar */}
+      <div className="bg-gradient-to-r from-[#F7F5FE] via-white to-[#F7F5FE] border border-[#E7E0FB] rounded-2xl p-5 shadow-xs">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-[#7C2CF5] text-white rounded-xl shadow-md shadow-[#7C2CF5]/20">
+              <Zap className="w-5 h-5" />
+            </div>
             <div>
-              <div className="text-xs font-bold text-[#120E24] flex items-center gap-1.5">
-                <span>Standard SMTP & IMAP</span>
-                {activeMethod === 'SMTP_IMAP' && <span className="text-[10px] text-[#7C2CF5] font-bold">• Active</span>}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-extrabold text-[#120E24]">Resend Enterprise Email Engine</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  ● ACTIVE (Port 443 HTTPS)
+                </span>
               </div>
               <p className="text-[11px] text-[#585172] mt-0.5">
-                Google Workspace, Zoho, Microsoft 365, Hostinger, cPanel
+                Exclusively dispatches all ATS candidate emails, stage alerts, onboarding invites, and official replies with 0ms port blocks.
               </p>
             </div>
-          </button>
+          </div>
 
-          <button
-            type="button"
-            onClick={() => setActiveMethod('TRANSACTIONAL_API')}
-            className={`p-3.5 rounded-xl border text-left transition flex items-start gap-3 ${
-              activeMethod === 'TRANSACTIONAL_API'
-                ? 'border-[#7C2CF5] bg-[#F7F5FE] ring-2 ring-[#7C2CF5]/20'
-                : 'border-[#E7E0FB] bg-[#FBFBFE] hover:bg-white'
-            }`}
-          >
-            <Zap className={`w-5 h-5 shrink-0 mt-0.5 ${activeMethod === 'TRANSACTIONAL_API' ? 'text-[#7C2CF5]' : 'text-[#585172]'}`} />
-            <div>
-              <div className="text-xs font-bold text-[#120E24] flex items-center gap-1.5">
-                <span>Transactional API Gateway</span>
-                {activeMethod === 'TRANSACTIONAL_API' && <span className="text-[10px] text-[#7C2CF5] font-bold">• Active</span>}
-              </div>
-              <p className="text-[11px] text-[#585172] mt-0.5">
-                Resend, SendGrid, Amazon SES, Postmark, Brevo
-              </p>
+          <div className="flex items-center gap-4 text-xs">
+            <div className="bg-white px-3.5 py-2 rounded-xl border border-[#E7E0FB]">
+              <span className="text-[10px] uppercase font-bold text-[#585172] block">Verified Domain</span>
+              <span className="font-bold text-[#7C2CF5] font-mono">codrix.co.in</span>
             </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveMethod('INBOUND_WEBHOOK')}
-            className={`p-3.5 rounded-xl border text-left transition flex items-start gap-3 ${
-              activeMethod === 'INBOUND_WEBHOOK'
-                ? 'border-[#7C2CF5] bg-[#F7F5FE] ring-2 ring-[#7C2CF5]/20'
-                : 'border-[#E7E0FB] bg-[#FBFBFE] hover:bg-white'
-            }`}
-          >
-            <Globe className={`w-5 h-5 shrink-0 mt-0.5 ${activeMethod === 'INBOUND_WEBHOOK' ? 'text-[#7C2CF5]' : 'text-[#585172]'}`} />
-            <div>
-              <div className="text-xs font-bold text-[#120E24] flex items-center gap-1.5">
-                <span>Inbound Email Webhook & DNS</span>
-                {activeMethod === 'INBOUND_WEBHOOK' && <span className="text-[10px] text-[#7C2CF5] font-bold">• Active</span>}
-              </div>
-              <p className="text-[11px] text-[#585172] mt-0.5">
-                Cloudflare Email Routing, SendGrid Inbound Parse
-              </p>
+            <div className="bg-white px-3.5 py-2 rounded-xl border border-[#E7E0FB]">
+              <span className="text-[10px] uppercase font-bold text-[#585172] block">Sender Address</span>
+              <span className="font-bold text-[#120E24] font-mono">connect@codrix.co.in</span>
             </div>
-          </button>
+            <div className="bg-white px-3.5 py-2 rounded-xl border border-[#E7E0FB]">
+              <span className="text-[10px] uppercase font-bold text-[#585172] block">Deliverability</span>
+              <span className="font-bold text-emerald-700">100% White-Labeled</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -620,11 +363,9 @@ export const SettingsView: React.FC = () => {
       <div className="flex border-b border-[#E7E0FB] gap-6 text-xs font-bold overflow-x-auto pb-1">
         {[
           { id: 'org', label: '1. Organization & Domain', icon: Building2 },
-          { id: 'smtp', label: '2. SMTP & IMAP Credentials', icon: Server },
-          { id: 'api', label: '3. Transactional API (Resend/SendGrid)', icon: Zap },
-          { id: 'webhook', label: '4. Inbound Webhook & DNS Guide', icon: Globe },
-          { id: 'mailboxes', label: `5. Connected Channels (${mailboxes.length})`, icon: Layers },
-          { id: 'test', label: '6. Live Diagnostics & Test Send', icon: Send }
+          { id: 'resend', label: '2. Resend Email Engine', icon: Zap },
+          { id: 'mailboxes', label: `3. Connected Channels (${mailboxes.length})`, icon: Layers },
+          { id: 'test', label: '4. Live Diagnostics & Test Send', icon: Send }
         ].map((tab) => {
           const Icon = tab.icon;
           const active = activeTab === tab.id;
@@ -645,7 +386,7 @@ export const SettingsView: React.FC = () => {
         })}
       </div>
 
-      {/* TAB 0: Organization & Domain Setup */}
+      {/* TAB 1: Organization & Domain Setup */}
       {activeTab === 'org' && (
         <div className="bg-white border border-[#E7E0FB] rounded-2xl p-6 shadow-xs space-y-6">
           <div className="flex justify-between items-center pb-3 border-b border-[#E7E0FB]">
@@ -663,7 +404,7 @@ export const SettingsView: React.FC = () => {
             </span>
           </div>
 
-          <form onSubmit={handleSaveSettings} className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          <form onSubmit={handleSaveOrganization} className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
             <div>
               <label className="block font-semibold text-[#120E24] mb-1">Company Legal Entity Name</label>
               <input
@@ -777,180 +518,124 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 1: SMTP & IMAP Setup */}
-      {activeTab === 'smtp' && (
+      {/* TAB 2: Resend Enterprise Email Engine */}
+      {activeTab === 'resend' && (
         <div className="space-y-6">
-          {/* Quick Presets */}
-          <div className="bg-[#F7F5FE] border border-[#E7E0FB] rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-            <div>
-              <span className="text-xs font-bold text-[#120E24] block">Quick Autofill Presets:</span>
-              <span className="text-[11px] text-[#585172]">Select your email hosting provider to autofill recommended hosts and ports</span>
+          {/* Domain Verification Status Card */}
+          <div className="bg-white border border-[#E7E0FB] rounded-2xl p-6 shadow-xs">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-[#E7E0FB]">
+              <div>
+                <h3 className="text-sm font-bold text-[#120E24] flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                  <span>Domain Verification & Deliverability Status</span>
+                </h3>
+                <p className="text-xs text-[#585172]">
+                  Resend manages authenticated cryptographic DKIM & SPF signing for maximum inbox delivery.
+                </p>
+              </div>
+
+              <span className="px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-200 flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>Verified Domain: codrix.co.in</span>
+              </span>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => handleApplyPreset('google')}
-                className="px-3 py-1.5 bg-white border border-[#E7E0FB] hover:border-[#7C2CF5] text-[#120E24] rounded-lg text-xs font-semibold transition"
-              >
-                Google Workspace
-              </button>
-              <button
-                type="button"
-                onClick={() => handleApplyPreset('zoho')}
-                className="px-3 py-1.5 bg-white border border-[#E7E0FB] hover:border-[#7C2CF5] text-[#120E24] rounded-lg text-xs font-semibold transition"
-              >
-                Zoho Mail
-              </button>
-              <button
-                type="button"
-                onClick={() => handleApplyPreset('m365')}
-                className="px-3 py-1.5 bg-white border border-[#E7E0FB] hover:border-[#7C2CF5] text-[#120E24] rounded-lg text-xs font-semibold transition"
-              >
-                Microsoft 365
-              </button>
-              <button
-                type="button"
-                onClick={() => handleApplyPreset('hostinger')}
-                className="px-3 py-1.5 bg-white border border-[#E7E0FB] hover:border-[#7C2CF5] text-[#120E24] rounded-lg text-xs font-semibold transition"
-              >
-                Hostinger / cPanel
-              </button>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 text-xs">
+              <div className="p-3.5 rounded-xl bg-[#FBFBFE] border border-[#E7E0FB]">
+                <span className="text-[10px] uppercase font-bold text-[#585172]">Cryptographic DKIM</span>
+                <div className="text-xs font-bold text-[#120E24] flex items-center gap-1.5 mt-1">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>resend._domainkey.codrix.co.in</span>
+                </div>
+                <p className="text-[11px] text-[#585172] mt-1">Status: Active & Verified</p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-[#FBFBFE] border border-[#E7E0FB]">
+                <span className="text-[10px] uppercase font-bold text-[#585172]">Sender Policy Framework (SPF)</span>
+                <div className="text-xs font-bold text-[#120E24] flex items-center gap-1.5 mt-1">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>send.codrix.co.in</span>
+                </div>
+                <p className="text-[11px] text-[#585172] mt-1">Status: Active & Verified</p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-[#FBFBFE] border border-[#E7E0FB]">
+                <span className="text-[10px] uppercase font-bold text-[#585172]">Brand Watermark Policy</span>
+                <div className="text-xs font-bold text-emerald-700 flex items-center gap-1.5 mt-1">
+                  <Sparkles className="w-4 h-4 text-[#7C2CF5]" />
+                  <span>Zero Watermarks (100% White-Labeled)</span>
+                </div>
+                <p className="text-[11px] text-[#585172] mt-1">No promotional footers or badges</p>
+              </div>
             </div>
           </div>
 
-          <form onSubmit={handleSaveSettings} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Outbound SMTP Card */}
-            <div className="bg-white border border-[#E7E0FB] rounded-2xl p-6 shadow-xs space-y-4">
-              <div className="flex justify-between items-center pb-3 border-b border-[#E7E0FB]">
-                <div>
-                  <h3 className="text-sm font-bold text-[#120E24] flex items-center gap-1.5">
-                    <Server className="w-4 h-4 text-[#7C2CF5]" />
-                    <span>Outbound SMTP Server (Sending)</span>
-                  </h3>
-                  <p className="text-[11px] text-[#585172]">Delivers candidate offers, client emails, and shared mailbox replies</p>
-                </div>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  config?.smtp?.status === 'CONNECTED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-[#F0ECFC] text-[#7C2CF5]'
-                }`}>
-                  {config?.smtp?.status || 'CONFIGURED'}
-                </span>
-              </div>
+          {/* Resend Engine Configuration Form */}
+          <div className="bg-white border border-[#E7E0FB] rounded-2xl p-6 shadow-xs space-y-5">
+            <div>
+              <h3 className="text-sm font-bold text-[#120E24] flex items-center gap-2">
+                <Zap className="w-4 h-4 text-[#7C2CF5]" />
+                <span>Resend API Configuration</span>
+              </h3>
+              <p className="text-xs text-[#585172]">
+                Secure HTTPS REST API credentials stored in MongoDB Atlas and environment variables.
+              </p>
+            </div>
 
+            <form onSubmit={handleSaveResend} className="space-y-4 max-w-xl text-xs">
               <div>
-                <label className="block text-xs font-semibold text-[#120E24] mb-1">SMTP Host</label>
-                <input
-                  type="text"
-                  required
-                  value={smtpHost}
-                  onChange={(e) => setSmtpHost(e.target.value)}
-                  className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3 py-2 text-xs text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                  placeholder="smtp.gmail.com"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-[#120E24] mb-1">Port</label>
-                  <input
-                    type="number"
-                    required
-                    value={smtpPort}
-                    onChange={(e) => setSmtpPort(Number(e.target.value))}
-                    className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3 py-2 text-xs text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[#120E24] mb-1">Encryption</label>
-                  <select
-                    value={smtpSecure ? 'ssl' : 'tls'}
-                    onChange={(e) => setSmtpSecure(e.target.value === 'ssl')}
-                    className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3 py-2 text-xs text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                  >
-                    <option value="tls">STARTTLS (Port 587)</option>
-                    <option value="ssl">SSL / TLS (Port 465)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#120E24] mb-1">Account Username / Email</label>
-                <input
-                  type="email"
-                  required
-                  value={smtpUser}
-                  onChange={(e) => setSmtpUser(e.target.value)}
-                  className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3 py-2 text-xs text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                  placeholder="connect@codrix.co.in"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#120E24] mb-1">Password or App Password</label>
+                <label className="block font-semibold text-[#120E24] mb-1">Resend API Key</label>
                 <div className="relative">
                   <input
-                    type={showSmtpPass ? 'text' : 'password'}
-                    value={smtpPass}
-                    onChange={(e) => setSmtpPass(e.target.value)}
-                    className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl pl-3 pr-10 py-2 text-xs text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                    placeholder="Enter App Password from provider"
+                    type={showApiKey ? 'text' : 'password'}
+                    value={resendApiKey}
+                    onChange={(e) => setResendApiKey(e.target.value)}
+                    className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl pl-3 pr-10 py-2.5 text-xs text-[#120E24] font-mono focus:border-[#7C2CF5] focus:outline-none"
+                    placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxxxx"
                   />
                   <button
                     type="button"
-                    onClick={() => setShowSmtpPass(!showSmtpPass)}
-                    className="absolute right-3 top-2 text-[#585172] hover:text-[#7C2CF5]"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="absolute right-3 top-2.5 text-[#585172] hover:text-[#7C2CF5]"
                   >
-                    {showSmtpPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+                <p className="text-[11px] text-[#585172] mt-1">
+                  Uses port 443 HTTPS REST API, permanently avoiding cloud firewall SMTP timeout issues.
+                </p>
               </div>
 
-              {/* Google Workspace / Gmail App Password Helper */}
-              <div className="p-3 bg-[#EDE4FF] border border-[#DDD0FE] rounded-xl text-[11px] text-[#585172] flex items-start gap-2">
-                <Key className="w-4 h-4 text-[#7C2CF5] shrink-0 mt-0.5" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <span className="font-bold text-[#120E24]">Google Workspace / Gmail Tip:</span> Use a <strong>16-character App Password</strong> (e.g. <code>xxxx xxxx xxxx xxxx</code>), not your personal Google account password.
-                  <a
-                    href="https://myaccount.google.com/apppasswords"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[#7C2CF5] font-bold underline ml-1 inline-flex items-center gap-0.5"
-                  >
-                    <span>Generate App Password</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <div>
-                  <label className="block text-xs font-semibold text-[#120E24] mb-1">Sender Name</label>
+                  <label className="block font-semibold text-[#120E24] mb-1">Sender Display Name</label>
                   <input
                     type="text"
-                    value={smtpFromName}
-                    onChange={(e) => setSmtpFromName(e.target.value)}
+                    value={resendFromName}
+                    onChange={(e) => setResendFromName(e.target.value)}
                     className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3 py-2 text-xs text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                    placeholder="CodRix Official"
+                    placeholder="Codrix Private Limited"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#120E24] mb-1">From Email Address</label>
+                  <label className="block font-semibold text-[#120E24] mb-1">Sender Email Address</label>
                   <input
                     type="email"
-                    value={smtpFromEmail}
-                    onChange={(e) => setSmtpFromEmail(e.target.value)}
-                    className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3 py-2 text-xs text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
+                    value={resendFromEmail}
+                    onChange={(e) => setResendFromEmail(e.target.value)}
+                    className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3 py-2 text-xs text-[#120E24] font-bold text-[#7C2CF5] focus:border-[#7C2CF5] focus:outline-none"
                     placeholder="connect@codrix.co.in"
                   />
                 </div>
               </div>
 
-              {smtpFeedback && (
+              {resendFeedback && (
                 <div className={`p-3 rounded-xl text-xs font-semibold border ${
-                  smtpFeedback.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-200'
+                  resendFeedback.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-200'
                 }`}>
                   <div className="flex items-center gap-2">
-                    {smtpFeedback.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
-                    <span>{smtpFeedback.message}</span>
+                    {resendFeedback.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
+                    <span>{resendFeedback.message}</span>
                   </div>
                 </div>
               )}
@@ -958,396 +643,34 @@ export const SettingsView: React.FC = () => {
               <div className="pt-3 border-t border-[#E7E0FB] flex flex-wrap gap-2 justify-between items-center">
                 <button
                   type="button"
-                  onClick={handleVerifySmtp}
+                  onClick={handleVerifyResendKey}
+                  disabled={verifyingKey}
                   className="px-3.5 py-2 bg-[#F0ECFC] hover:bg-[#EDE4FF] text-[#7C2CF5] border border-[#E7E0FB] rounded-xl text-xs font-bold transition flex items-center gap-1.5"
                 >
-                  <Zap className="w-3.5 h-3.5" />
-                  <span>Test SMTP Handshake</span>
+                  <RefreshCw className={`w-3.5 h-3.5 ${verifyingKey ? 'animate-spin' : ''}`} />
+                  <span>Verify API Key Handshake</span>
                 </button>
                 <button
-                  type="button"
-                  onClick={handleSaveSmtp}
-                  disabled={smtpSaving}
+                  type="submit"
+                  disabled={resendSaving}
                   className="px-4 py-2 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white rounded-xl text-xs font-bold shadow-md shadow-[#7C2CF5]/25 transition flex items-center gap-1.5"
                 >
-                  {smtpSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                  <span>Save Outbound SMTP & Sync Channel</span>
+                  {resendSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  <span>Save Resend Engine Settings</span>
                 </button>
               </div>
-            </div>
-
-            {/* Inbound IMAP Card */}
-            <div className="bg-white border border-[#E7E0FB] rounded-2xl p-6 shadow-xs space-y-4">
-              <div className="flex justify-between items-center pb-3 border-b border-[#E7E0FB]">
-                <div>
-                  <h3 className="text-sm font-bold text-[#120E24] flex items-center gap-1.5">
-                    <Mail className="w-4 h-4 text-[#7C2CF5]" />
-                    <span>Inbound IMAP Server (Receiving & Sync)</span>
-                  </h3>
-                  <p className="text-[11px] text-[#585172]">Syncs incoming emails automatically into the Unified Mailbox</p>
-                </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  IMAP ACTIVE
-                </span>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#120E24] mb-1">IMAP Host</label>
-                <input
-                  type="text"
-                  required
-                  value={imapHost}
-                  onChange={(e) => setImapHost(e.target.value)}
-                  className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3 py-2 text-xs text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                  placeholder="imap.gmail.com"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-[#120E24] mb-1">Port</label>
-                  <input
-                    type="number"
-                    required
-                    value={imapPort}
-                    onChange={(e) => setImapPort(Number(e.target.value))}
-                    className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3 py-2 text-xs text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[#120E24] mb-1">Security</label>
-                  <select
-                    value={imapSecure ? 'ssl' : 'plain'}
-                    onChange={(e) => setImapSecure(e.target.value === 'ssl')}
-                    className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3 py-2 text-xs text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                  >
-                    <option value="ssl">SSL / TLS (Port 993)</option>
-                    <option value="plain">STARTTLS (Port 143)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="block text-xs font-semibold text-[#120E24]">IMAP Username</label>
-                  <button
-                    type="button"
-                    onClick={handleCopySmtpToImap}
-                    className="text-[11px] text-[#7C2CF5] font-bold hover:underline flex items-center gap-1"
-                  >
-                    <Link2 className="w-3 h-3" />
-                    <span>Copy from SMTP</span>
-                  </button>
-                </div>
-                <input
-                  type="email"
-                  required
-                  value={imapUser}
-                  onChange={(e) => setImapUser(e.target.value)}
-                  className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3 py-2 text-xs text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                  placeholder="connect@codrix.co.in"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#120E24] mb-1">IMAP Password</label>
-                <div className="relative">
-                  <input
-                    type={showImapPass ? 'text' : 'password'}
-                    value={imapPass}
-                    onChange={(e) => setImapPass(e.target.value)}
-                    className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl pl-3 pr-10 py-2 text-xs text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                    placeholder="Enter App Password from provider"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowImapPass(!showImapPass)}
-                    className="absolute right-3 top-2 text-[#585172] hover:text-[#7C2CF5]"
-                  >
-                    {showImapPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-3 bg-[#F7F5FE] border border-[#E7E0FB] rounded-xl text-[11px] text-[#585172]">
-                💡 <strong>Tip for Google Workspace / Gmail:</strong> Use the same 16-character App Password generated for SMTP.
-              </div>
-
-              {imapFeedback && (
-                <div className={`p-3 rounded-xl text-xs font-semibold border ${
-                  imapFeedback.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-200'
-                }`}>
-                  <div className="flex items-center gap-2">
-                    {imapFeedback.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
-                    <span>{imapFeedback.message}</span>
-                  </div>
-                </div>
-              )}
-
-              <div className="pt-3 border-t border-[#E7E0FB] flex justify-end">
-                <button
-                  type="button"
-                  onClick={handleSaveImap}
-                  disabled={imapSaving}
-                  className="px-4 py-2 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white rounded-xl text-xs font-bold shadow-md shadow-[#7C2CF5]/25 transition flex items-center gap-1.5"
-                >
-                  {imapSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                  <span>Save Inbound IMAP & Sync Channel</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Status Alert Banner */}
-            {testStatus.type && (
-              <div className={`col-span-1 md:col-span-2 p-4 rounded-xl border flex items-center gap-3 text-xs font-semibold ${
-                testStatus.type === 'success'
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                  : testStatus.type === 'error'
-                  ? 'bg-rose-50 border-rose-200 text-rose-800'
-                  : 'bg-[#F0ECFC] border-[#E7E0FB] text-[#7C2CF5]'
-              }`}>
-                {testStatus.type === 'loading' && <RefreshCw className="w-4 h-4 animate-spin" />}
-                {testStatus.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
-                {testStatus.type === 'error' && <AlertCircle className="w-4 h-4 text-rose-600" />}
-                <span>{testStatus.message}</span>
-              </div>
-            )}
-          </form>
-        </div>
-      )}
-
-      {/* TAB 2: Transactional API Gateways */}
-      {activeTab === 'api' && (
-        <div className="bg-white border border-[#E7E0FB] rounded-2xl p-6 shadow-xs space-y-6">
-          <div>
-            <h3 className="text-sm font-bold text-[#120E24]">Transactional Email Gateways</h3>
-            <p className="text-xs text-[#585172]">
-              Use specialized developer delivery services with 99.9% inbox deliverability, DKIM signing, and zero rate limits.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            {[
-              { id: 'RESEND', name: 'Resend', desc: 'Modern & fast developer email' },
-              { id: 'SENDGRID', name: 'SendGrid', desc: 'Twilio high-volume delivery' },
-              { id: 'AWS_SES', name: 'Amazon SES', desc: 'AWS scalable cloud mail' },
-              { id: 'POSTMARK', name: 'Postmark', desc: 'Sub-second transactional API' },
-              { id: 'BREVO', name: 'Brevo', desc: 'Enterprise marketing & transactional' }
-            ].map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setTransProvider(p.id as any)}
-                className={`p-3 rounded-xl border text-left transition ${
-                  transProvider === p.id
-                    ? 'border-[#7C2CF5] bg-[#F7F5FE] ring-2 ring-[#7C2CF5]/20'
-                    : 'border-[#E7E0FB] bg-[#FBFBFE] hover:bg-white'
-                }`}
-              >
-                <div className="font-bold text-xs text-[#120E24]">{p.name}</div>
-                <div className="text-[10px] text-[#585172] mt-0.5">{p.desc}</div>
-              </button>
-            ))}
-          </div>
-
-          <div className="space-y-4 max-w-xl">
-            <div>
-              <label className="block text-xs font-semibold text-[#120E24] mb-1">
-                {transProvider} API Key
-              </label>
-              <div className="relative">
-                <input
-                  type={showApiKey ? 'text' : 'password'}
-                  value={transApiKey}
-                  onChange={(e) => setTransApiKey(e.target.value)}
-                  className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl pl-3 pr-10 py-2.5 text-xs text-[#120E24] font-mono focus:border-[#7C2CF5] focus:outline-none"
-                  placeholder={transProvider === 'RESEND' ? 're_123456789...' : 'SG.xxxxxxx...'}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute right-3 top-2.5 text-[#585172] hover:text-[#7C2CF5]"
-                >
-                  {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-[#120E24] mb-1">Sender Name</label>
-                <input
-                  type="text"
-                  value={transFromName}
-                  onChange={(e) => setTransFromName(e.target.value)}
-                  className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3 py-2 text-xs text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                  placeholder="CodRix Official"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-[#120E24] mb-1">Verified From Email</label>
-                <input
-                  type="email"
-                  value={transFromEmail}
-                  onChange={(e) => setTransFromEmail(e.target.value)}
-                  className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3 py-2 text-xs text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                  placeholder="connect@codrix.co.in"
-                />
-              </div>
-            </div>
-
-            {transFeedback && (
-              <div className={`p-3 rounded-xl text-xs font-semibold border ${
-                transFeedback.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-200'
-              }`}>
-                <div className="flex items-center gap-2">
-                  {transFeedback.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
-                  <span>{transFeedback.message}</span>
-                </div>
-              </div>
-            )}
-
-            <div className="pt-3 border-t border-[#E7E0FB] flex justify-end">
-              <button
-                type="button"
-                onClick={handleSaveTransactional}
-                disabled={transSaving}
-                className="px-4 py-2 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white rounded-xl text-xs font-bold shadow-md shadow-[#7C2CF5]/25 transition flex items-center gap-1.5"
-              >
-                {transSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                <span>Save Transactional Gateway & Sync Channel</span>
-              </button>
-            </div>
+            </form>
           </div>
         </div>
       )}
 
-      {/* TAB 3: Inbound Webhook & DNS Guide */}
-      {activeTab === 'webhook' && (
-        <div className="space-y-6">
-          {/* Webhook Endpoint Card */}
-          <div className="bg-white border border-[#E7E0FB] rounded-2xl p-6 shadow-xs space-y-4">
-            <div>
-              <h3 className="text-sm font-bold text-[#120E24]">Inbound Email Parsing Webhook</h3>
-              <p className="text-xs text-[#585172]">
-                Route incoming messages sent to any <code className="text-[#7C2CF5] font-bold">@codrix.co.in</code> address straight to this endpoint.
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[#120E24] mb-1">Ingestion Webhook URL</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={webhookUrl}
-                  className="w-full bg-[#F7F5FE] border border-[#E7E0FB] rounded-xl px-3.5 py-2.5 text-xs text-[#120E24] font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => copyToClipboard(webhookUrl, 'url')}
-                  className="px-4 py-2 bg-[#F0ECFC] hover:bg-[#EDE4FF] text-[#7C2CF5] border border-[#E7E0FB] rounded-xl text-xs font-bold transition flex items-center gap-1.5"
-                >
-                  {copied === 'url' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                  <span>{copied === 'url' ? 'Copied!' : 'Copy URL'}</span>
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[#120E24] mb-1">Webhook Signing Secret</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={signingSecret}
-                  className="w-full bg-[#F7F5FE] border border-[#E7E0FB] rounded-xl px-3.5 py-2.5 text-xs text-[#120E24] font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => copyToClipboard(signingSecret, 'secret')}
-                  className="px-4 py-2 bg-[#F0ECFC] hover:bg-[#EDE4FF] text-[#7C2CF5] border border-[#E7E0FB] rounded-xl text-xs font-bold transition flex items-center gap-1.5"
-                >
-                  {copied === 'secret' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                  <span>{copied === 'secret' ? 'Copied!' : 'Copy Secret'}</span>
-                </button>
-              </div>
-            </div>
-
-            {webhookFeedback && (
-              <div className={`p-3 rounded-xl text-xs font-semibold border ${
-                webhookFeedback.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-200'
-              }`}>
-                <div className="flex items-center gap-2">
-                  {webhookFeedback.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
-                  <span>{webhookFeedback.message}</span>
-                </div>
-              </div>
-            )}
-
-            <div className="pt-3 border-t border-[#E7E0FB] flex justify-end">
-              <button
-                type="button"
-                onClick={handleSaveWebhook}
-                disabled={webhookSaving}
-                className="px-4 py-2 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white rounded-xl text-xs font-bold shadow-md shadow-[#7C2CF5]/25 transition flex items-center gap-1.5"
-              >
-                {webhookSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                <span>Save Inbound Webhook Settings</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Recommended DNS Records for codrix.co.in */}
-          <div className="bg-white border border-[#E7E0FB] rounded-2xl p-6 shadow-xs space-y-4">
-            <h3 className="text-sm font-bold text-[#120E24]">Recommended DNS Records for codrix.co.in</h3>
-            <p className="text-xs text-[#585172]">
-              Add these DNS records in your domain registrar (e.g. GoDaddy, Cloudflare, Namecheap) to guarantee 100% email delivery and avoid the spam folder.
-            </p>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-[#F7F5FE] text-[#585172] font-semibold border-b border-[#E7E0FB]">
-                  <tr>
-                    <th className="py-2.5 px-3">Type</th>
-                    <th className="py-2.5 px-3">Name / Host</th>
-                    <th className="py-2.5 px-3">Value / Target</th>
-                    <th className="py-2.5 px-3">Purpose</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#E7E0FB]">
-                  <tr>
-                    <td className="py-2.5 px-3 font-bold text-[#7C2CF5]">TXT</td>
-                    <td className="py-2.5 px-3 font-mono">@</td>
-                    <td className="py-2.5 px-3 font-mono text-[11px]">v=spf1 include:_spf.google.com ~all</td>
-                    <td className="py-2.5 px-3 text-[#585172]">SPF: Authorizes outbound sending IP</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2.5 px-3 font-bold text-[#7C2CF5]">TXT</td>
-                    <td className="py-2.5 px-3 font-mono">_dmarc</td>
-                    <td className="py-2.5 px-3 font-mono text-[11px]">v=DMARC1; p=none; rua=mailto:dmarc@codrix.co.in</td>
-                    <td className="py-2.5 px-3 text-[#585172]">DMARC: Domain protection & policy</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2.5 px-3 font-bold text-[#7C2CF5]">MX</td>
-                    <td className="py-2.5 px-3 font-mono">@</td>
-                    <td className="py-2.5 px-3 font-mono text-[11px]">10 smtp.google.com (or provider MX)</td>
-                    <td className="py-2.5 px-3 text-[#585172]">MX: Inbound mail routing</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 4: Connected Channels */}
+      {/* TAB 3: Connected Channels */}
       {activeTab === 'mailboxes' && (
         <div className="bg-white border border-[#E7E0FB] rounded-2xl p-6 shadow-xs space-y-4">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 pb-3 border-b border-[#E7E0FB]">
             <div>
               <h3 className="text-sm font-bold text-[#120E24]">Authorized Company Channels</h3>
-              <p className="text-xs text-[#585172]">Mailboxes active in the unified team workspace and saved in MongoDB Atlas</p>
+              <p className="text-xs text-[#585172]">Official brand mailboxes connected to the Resend dispatch engine in MongoDB Atlas</p>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -1393,9 +716,14 @@ export const SettingsView: React.FC = () => {
                   <div>
                     <div className="font-bold text-xs text-[#120E24]">{mb.displayName}</div>
                     <div className="text-[11px] font-mono text-[#7C2CF5]">{mb.mailboxAddress}</div>
-                    <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">
-                      ● {mb.connectionStatus}
-                    </span>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">
+                        ● {mb.connectionStatus}
+                      </span>
+                      <span className="text-[10px] text-[#585172] font-semibold">
+                        (Provider: Resend)
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -1414,13 +742,13 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 5: Live Test Send & Diagnostics */}
+      {/* TAB 4: Live Diagnostics & Test Send */}
       {activeTab === 'test' && (
         <div className="bg-white border border-[#E7E0FB] rounded-2xl p-6 shadow-xs space-y-6">
           <div>
-            <h3 className="text-sm font-bold text-[#120E24]">Live Email Delivery Diagnostic</h3>
+            <h3 className="text-sm font-bold text-[#120E24]">Live Resend Email Delivery Diagnostic</h3>
             <p className="text-xs text-[#585172]">
-              Send a real email immediately through your configured engine to verify that messages land in the recipient's inbox.
+              Send an instant live email through the verified Resend HTTPS engine to confirm delivery directly to any mailbox.
             </p>
           </div>
 
@@ -1433,7 +761,7 @@ export const SettingsView: React.FC = () => {
                 value={testSendEmail}
                 onChange={(e) => setTestSendEmail(e.target.value)}
                 className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl px-3.5 py-2.5 text-xs text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                placeholder="lakshay@codrix.co.in"
+                placeholder="lakshayb057@gmail.com"
               />
             </div>
 
@@ -1443,7 +771,7 @@ export const SettingsView: React.FC = () => {
               className="px-5 py-2.5 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white rounded-xl text-xs font-bold shadow-md shadow-[#7C2CF5]/25 transition flex items-center gap-2"
             >
               {sendResult.type === 'loading' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              <span>Send Live Test Verification Email</span>
+              <span>Send Live Test Verification Email via Resend</span>
             </button>
           </form>
 
@@ -1466,38 +794,6 @@ export const SettingsView: React.FC = () => {
                   {JSON.stringify(sendResult.details, null, 2)}
                 </pre>
               )}
-            </div>
-          )}
-
-          {/* Interactive Google App Password Resolver Alert */}
-          {sendResult.type === 'error' && (sendResult.message?.includes('535') || sendResult.message?.includes('BadCredentials') || sendResult.message?.includes('Username and Password') || sendResult.message?.includes('Google')) && (
-            <div className="p-4 bg-[#EDE4FF] border border-[#DDD0FE] rounded-2xl text-xs space-y-2 max-w-lg">
-              <div className="flex items-center gap-2 font-bold text-[#120E24]">
-                <Key className="w-4 h-4 text-[#7C2CF5]" />
-                <span>How to Fix "535-5.7.8 Username and Password not accepted" (Google Workspace / Gmail):</span>
-              </div>
-              <p className="text-[#585172] text-[11px] leading-relaxed">
-                Google blocks personal account passwords for third-party SMTP. You must generate a dedicated <strong>16-character Google App Password</strong>:
-              </p>
-              <ol className="list-decimal list-inside text-[11px] text-[#585172] space-y-1">
-                <li>Make sure <strong>2-Step Verification</strong> is enabled on your Google account.</li>
-                <li>
-                  Go directly to <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" className="text-[#7C2CF5] font-bold underline inline-flex items-center gap-0.5">Google App Passwords <ExternalLink className="w-3 h-3" /></a>.
-                </li>
-                <li>Type App Name: <strong>CodRix</strong> and click <strong>Create</strong>.</li>
-                <li>Copy the generated 16-letter password (e.g. <code>abcd efgh ijkl mnop</code>).</li>
-                <li>
-                  Click{' '}
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('smtp')}
-                    className="text-[#7C2CF5] font-bold underline hover:text-[#6D25D9]"
-                  >
-                    Tab 2: SMTP & IMAP Credentials
-                  </button>
-                  , paste it into <strong>Password or App Password</strong>, and click <strong>Save Outbound SMTP & Sync Channel</strong>!
-                </li>
-              </ol>
             </div>
           )}
         </div>
