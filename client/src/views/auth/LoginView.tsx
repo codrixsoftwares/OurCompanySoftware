@@ -14,7 +14,9 @@ import {
   ArrowLeft,
   User,
   KeyRound,
-  Check
+  Check,
+  Zap,
+  Users
 } from 'lucide-react';
 import { workStateManager } from '../../core/workStateManager.js';
 
@@ -268,397 +270,518 @@ export const LoginView: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FBFBFE] flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden font-['Plus_Jakarta_Sans',sans-serif]">
-      {/* Background ambient glow matching codrix.co.in */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#7C2CF5]/10 blur-[120px] rounded-full pointer-events-none"></div>
+    <div className="min-h-screen bg-[#FBFBFE] relative overflow-hidden font-['Plus_Jakarta_Sans',sans-serif] flex items-center justify-center px-4 py-8 sm:px-6 lg:px-12">
+      {/* Background ambient glows matching CodRix visual design */}
+      <div className="absolute top-1/4 -left-20 w-[550px] h-[550px] bg-[#7C2CF5]/10 blur-[130px] rounded-full pointer-events-none"></div>
+      <div className="absolute bottom-10 right-0 w-[500px] h-[500px] bg-[#6366F1]/10 blur-[130px] rounded-full pointer-events-none"></div>
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-[#9D5CFA]/5 blur-[150px] rounded-full pointer-events-none"></div>
 
-      <div className="max-w-md w-full bg-white border border-[#E7E0FB] rounded-3xl shadow-2xl shadow-[#7C2CF5]/10 p-8 relative z-10">
-        {/* Header with Official Logo */}
-        <div className="text-center mb-6">
-          <div className="inline-flex p-3 rounded-2xl bg-[#F6F3FF] border border-[#E7E0FB] shadow-inner mb-3">
-            <img
-              src="/logo-icon.png"
-              alt="CodRix Official Logo"
-              className="w-14 h-14 object-contain drop-shadow-sm"
-            />
+      {/* Main Container */}
+      <div className="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center relative z-10">
+        
+        {/* ========================================================= */}
+        {/* LEFT COLUMN: Logo -> "CodRix" -> "Connect" + Graphics   */}
+        {/* ========================================================= */}
+        <div className="lg:col-span-6 flex flex-col items-start justify-center py-4 lg:py-8 lg:pr-6 space-y-6">
+          {/* Platform Status Pill */}
+          <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-white border border-[#E7E0FB] shadow-xs text-xs font-semibold text-[#585172]">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span>Enterprise Cloud Platform</span>
+            <span className="text-[#E7E0FB]">•</span>
+            <span className="text-[#7C2CF5] font-bold">Secure v2.4</span>
           </div>
-          <h2 className="text-2xl font-extrabold text-[#120E24] tracking-tight flex items-center justify-center gap-1.5">
-            <span>CodRix</span>
-            <span className="w-2 h-2 rounded-full bg-[#7C2CF5]"></span>
-          </h2>
-          <p className="text-xs text-[#585172] mt-1 font-semibold">
-            {mode === 'LOGIN' && 'Multi-Tenant Enterprise Operating System'}
-            {mode === 'REGISTER' && 'Create Your Enterprise Account'}
-            {mode === 'FORGOT_PASSWORD' && 'Recover Account Password'}
-            {mode === 'RESET_PASSWORD' && 'Set New Account Password'}
-          </p>
-        </div>
 
-        {/* 15-Minute Inactivity Session Notice Banner (Only shown on Login) */}
-        {mode === 'LOGIN' && timeoutNotice && (
-          <div className="mb-6 p-4 bg-amber-50/90 border border-amber-200/90 rounded-2xl text-amber-900 shadow-xs animate-in fade-in duration-300">
-            <div className="flex items-start gap-3">
-              <div className="p-2 rounded-xl bg-amber-100 text-amber-800 shrink-0 mt-0.5">
+          {/* Logo, CodRix, and Connect Brand Block */}
+          <div className="space-y-4">
+            {/* Company Logo */}
+            <div className="relative group inline-block">
+              <div className="absolute -inset-2 bg-gradient-to-r from-[#7C2CF5] via-[#9D5CFA] to-[#6366F1] rounded-3xl blur-xl opacity-25 group-hover:opacity-45 transition duration-500"></div>
+              <div className="relative p-4 rounded-3xl bg-white border border-[#E7E0FB] shadow-xl shadow-[#7C2CF5]/10 flex items-center justify-center">
+                <img
+                  src="/logo-icon.png"
+                  alt="CodRix Official Logo"
+                  className="w-16 h-16 sm:w-20 sm:h-20 object-contain drop-shadow-md"
+                />
+              </div>
+            </div>
+
+            {/* Below Logo: Company Name "CodRix" */}
+            <div>
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-[#120E24] tracking-tight leading-none">
+                CodRix
+              </h1>
+              
+              {/* Below Company Name: Word "Connect" */}
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight bg-gradient-to-r from-[#7C2CF5] via-[#9B51E0] to-[#6366F1] bg-clip-text text-transparent">
+                  Connect
+                </span>
+                <span className="inline-block w-2.5 h-2.5 rounded-full bg-[#7C2CF5] animate-pulse"></span>
+              </div>
+            </div>
+
+            <p className="text-sm sm:text-base text-[#585172] max-w-lg leading-relaxed pt-1 font-medium">
+              The next-generation multi-tenant enterprise operating system. Unifying workforce intelligence, recruitment pipelines, CRM, projects, and secure communications.
+            </p>
+          </div>
+
+          {/* Graphics & Enterprise Feature Highlights */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 w-full max-w-lg pt-1">
+            <div className="p-3.5 rounded-2xl bg-white/80 border border-[#E7E0FB] shadow-xs flex items-start gap-3 backdrop-blur-xs">
+              <div className="p-2 rounded-xl bg-[#F6F3FF] text-[#7C2CF5] shrink-0 mt-0.5">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-[#120E24]">Argon2id Vault</h4>
+                <p className="text-[11px] text-[#585172] mt-0.5">Zero-trust memory-hard password encryption</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-white/80 border border-[#E7E0FB] shadow-xs flex items-start gap-3 backdrop-blur-xs">
+              <div className="p-2 rounded-xl bg-purple-50 text-[#7C2CF5] shrink-0 mt-0.5">
+                <Zap className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-[#120E24]">Real-Time Sync</h4>
+                <p className="text-[11px] text-[#585172] mt-0.5">Resend webhooks, reactive sockets, and live states</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-white/80 border border-[#E7E0FB] shadow-xs flex items-start gap-3 backdrop-blur-xs">
+              <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600 shrink-0 mt-0.5">
+                <Users className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-[#120E24]">Granular Access</h4>
+                <p className="text-[11px] text-[#585172] mt-0.5">Superadmin controlled module and workspace permissions</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-white/80 border border-[#E7E0FB] shadow-xs flex items-start gap-3 backdrop-blur-xs">
+              <div className="p-2 rounded-xl bg-amber-50 text-amber-600 shrink-0 mt-0.5">
                 <Clock className="w-4 h-4" />
               </div>
-              <div className="space-y-1.5 flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wide">
-                    Session Logged Out (15m Inactivity)
-                  </h4>
-                  <span className="text-[10px] font-semibold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-full">
-                    Auto-Protected
-                  </span>
-                </div>
-                <p className="text-[11px] text-amber-800 leading-relaxed">
-                  Your session timed out after 15 minutes of inactivity to protect your workspace security.
-                </p>
-                <div className="p-2.5 rounded-xl bg-white/80 border border-amber-200/70 text-[11px] flex items-start gap-2">
-                  <Save className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
-                  <div>
-                    <span className="font-semibold text-emerald-800">Your last work was safely preserved:</span>
-                    <div className="font-medium text-[#120E24] mt-0.5 italic">
-                      "{timeoutNotice.summary || 'Active Workspace Session'}"
+              <div>
+                <h4 className="text-xs font-bold text-[#120E24]">Auto Session Defense</h4>
+                <p className="text-[11px] text-[#585172] mt-0.5">15-minute inactivity lock with instant work preservation</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Infrastructure trust badge */}
+          <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-[#585172] pt-1">
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>Cloudflare Edge SSL Active</span>
+            </div>
+            <span className="text-[#E7E0FB]">•</span>
+            <span className="text-[#7C2CF5] font-bold">connect.codrix.co.in</span>
+          </div>
+        </div>
+
+        {/* ========================================================= */}
+        {/* RIGHT COLUMN: Authentication Card Form (Aligned Right)    */}
+        {/* ========================================================= */}
+        <div className="lg:col-span-6 flex items-center justify-center lg:justify-end w-full">
+          <div className="max-w-md w-full bg-white border border-[#E7E0FB] rounded-3xl shadow-2xl shadow-[#7C2CF5]/10 p-7 sm:p-9 relative">
+            
+            {/* Card Header */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold text-[#7C2CF5] uppercase tracking-wider bg-[#F6F3FF] px-2.5 py-1 rounded-lg border border-[#E7E0FB]">
+                  {mode === 'LOGIN' && 'Sign In'}
+                  {mode === 'REGISTER' && 'Register'}
+                  {mode === 'FORGOT_PASSWORD' && 'Recovery'}
+                  {mode === 'RESET_PASSWORD' && 'Security'}
+                </span>
+                <span className="text-[11px] text-[#585172] font-semibold">Enterprise Workspace</span>
+              </div>
+              <h2 className="text-2xl font-black text-[#120E24] tracking-tight">
+                {mode === 'LOGIN' && 'Sign In to Workspace'}
+                {mode === 'REGISTER' && 'Create Your Account'}
+                {mode === 'FORGOT_PASSWORD' && 'Recover Password'}
+                {mode === 'RESET_PASSWORD' && 'Set New Password'}
+              </h2>
+              <p className="text-xs text-[#585172] mt-1 font-medium">
+                {mode === 'LOGIN' && 'Enter your authorized enterprise credentials to access your session.'}
+                {mode === 'REGISTER' && 'Register your company email to request or activate access.'}
+                {mode === 'FORGOT_PASSWORD' && 'Enter your registered email to receive a secure reset link.'}
+                {mode === 'RESET_PASSWORD' && 'Choose a strong password with Argon2id protection.'}
+              </p>
+            </div>
+
+            {/* 15-Minute Inactivity Session Notice Banner (Only shown on Login) */}
+            {mode === 'LOGIN' && timeoutNotice && (
+              <div className="mb-6 p-4 bg-amber-50/90 border border-amber-200/90 rounded-2xl text-amber-900 shadow-xs animate-in fade-in duration-300">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-xl bg-amber-100 text-amber-800 shrink-0 mt-0.5">
+                    <Clock className="w-4 h-4" />
+                  </div>
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wide">
+                        Session Logged Out (15m Inactivity)
+                      </h4>
+                      <span className="text-[10px] font-semibold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-full">
+                        Auto-Protected
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-amber-800 leading-relaxed">
+                      Your session timed out after 15 minutes of inactivity to protect your workspace security.
+                    </p>
+                    <div className="p-2.5 rounded-xl bg-white/80 border border-amber-200/70 text-[11px] flex items-start gap-2">
+                      <Save className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
+                      <div>
+                        <span className="font-semibold text-emerald-800">Your last work was safely preserved:</span>
+                        <div className="font-medium text-[#120E24] mt-0.5 italic">
+                          "{timeoutNotice.summary || 'Active Workspace Session'}"
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-[10px] text-amber-700 font-medium flex items-center gap-1 pt-0.5">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                      <span>Log back in below to continue exactly where you left off.</span>
                     </div>
                   </div>
-                </div>
-                <div className="text-[10px] text-amber-700 font-medium flex items-center gap-1 pt-0.5">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                  <span>Log back in below to continue exactly where you left off.</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Error Notification */}
-        {error && (
-          <div className="mb-6 p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-700 text-xs font-semibold">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {/* Success Notification */}
-        {successMsg && (
-          <div className="mb-6 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2 text-emerald-800 text-xs font-semibold">
-            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
-            <span>{successMsg}</span>
-          </div>
-        )}
-
-        {/* MODE: LOGIN */}
-        {mode === 'LOGIN' && (
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-[#120E24] uppercase tracking-wider mb-1.5">
-                Work Email
-              </label>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-[#7C2CF5] absolute left-3.5 top-3" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="w-full bg-[#F7F5FE] border border-[#E7E0FB] rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-[#120E24] placeholder-slate-400 focus:outline-none focus:border-[#7C2CF5] focus:ring-1 focus:ring-[#7C2CF5] font-medium transition"
-                  placeholder="name@codrix.co.in"
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-bold text-[#120E24] uppercase tracking-wider">
-                  Password
-                </label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    resetFormState();
-                    setMode('FORGOT_PASSWORD');
-                  }}
-                  className="text-[11px] font-semibold text-[#7C2CF5] hover:underline"
-                >
-                  Forgot password?
-                </button>
-              </div>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-[#7C2CF5] absolute left-3.5 top-3" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  placeholder="••••••••"
-                  className="w-full bg-[#F7F5FE] border border-[#E7E0FB] rounded-xl pl-10 pr-10 py-2.5 text-xs text-[#120E24] placeholder-slate-400 focus:outline-none focus:border-[#7C2CF5] focus:ring-1 focus:ring-[#7C2CF5] font-medium transition"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute right-3.5 top-2.5 text-[#585172] hover:text-[#7C2CF5] transition p-0.5 rounded-md focus:outline-none"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            {turnstileSiteKey && (
-              <div className="flex flex-col items-center justify-center my-3">
-                <div ref={turnstileContainerRef} className="min-h-[65px] flex items-center justify-center" />
-                <div className="flex items-center gap-1.5 text-[10px] text-[#585172] mt-1.5 font-medium">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Protected by Cloudflare Turnstile Authentication</span>
                 </div>
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full mt-2 py-3 px-4 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white font-bold text-xs rounded-xl shadow-lg shadow-[#7C2CF5]/30 hover:shadow-[#7C2CF5]/50 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              {loading ? 'Authenticating...' : 'Sign In to Workspace'}
-            </button>
-
-            <div className="text-center pt-2">
-              <span className="text-xs text-[#585172]">Need a new account? </span>
-              <button
-                type="button"
-                onClick={() => {
-                  resetFormState();
-                  setMode('REGISTER');
-                }}
-                className="text-xs font-bold text-[#7C2CF5] hover:underline"
-              >
-                Register
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* MODE: REGISTER */}
-        {mode === 'REGISTER' && (
-          <form onSubmit={handleRegister} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-[#120E24] uppercase tracking-wider mb-1.5">
-                Full Name
-              </label>
-              <div className="relative">
-                <User className="w-4 h-4 text-[#7C2CF5] absolute left-3.5 top-3" />
-                <input
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  required
-                  placeholder="e.g. Alex Johnson"
-                  className="w-full bg-[#F7F5FE] border border-[#E7E0FB] rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-[#120E24] placeholder-slate-400 focus:outline-none focus:border-[#7C2CF5]"
-                />
+            {/* Error Notification */}
+            {error && (
+              <div className="mb-6 p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-700 text-xs font-semibold">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{error}</span>
               </div>
-            </div>
+            )}
 
-            <div>
-              <label className="block text-xs font-bold text-[#120E24] uppercase tracking-wider mb-1.5">
-                Work Email
-              </label>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-[#7C2CF5] absolute left-3.5 top-3" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  placeholder="name@codrix.co.in"
-                  className="w-full bg-[#F7F5FE] border border-[#E7E0FB] rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-[#120E24] placeholder-slate-400 focus:outline-none focus:border-[#7C2CF5]"
-                />
+            {/* Success Notification */}
+            {successMsg && (
+              <div className="mb-6 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2 text-emerald-800 text-xs font-semibold">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
+                <span>{successMsg}</span>
               </div>
-            </div>
+            )}
 
-            <div>
-              <label className="block text-xs font-bold text-[#120E24] uppercase tracking-wider mb-1.5">
-                Password (8+ chars, upper/lowercase, numbers & symbols)
-              </label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-[#7C2CF5] absolute left-3.5 top-3" />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  placeholder="••••••••"
-                  className="w-full bg-[#F7F5FE] border border-[#E7E0FB] rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-[#120E24] placeholder-slate-400 focus:outline-none focus:border-[#7C2CF5]"
-                />
+            {/* MODE: LOGIN */}
+            {mode === 'LOGIN' && (
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#120E24] uppercase tracking-wider mb-1.5">
+                    Work Email
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-[#7C2CF5] absolute left-3.5 top-3" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="w-full bg-[#F7F5FE] border border-[#E7E0FB] rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-[#120E24] placeholder-slate-400 focus:outline-none focus:border-[#7C2CF5] focus:ring-1 focus:ring-[#7C2CF5] font-medium transition"
+                      placeholder="name@codrix.co.in"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-[#120E24] uppercase tracking-wider">
+                      Password
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetFormState();
+                        setMode('FORGOT_PASSWORD');
+                      }}
+                      className="text-[11px] font-semibold text-[#7C2CF5] hover:underline"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-[#7C2CF5] absolute left-3.5 top-3" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      placeholder="••••••••"
+                      className="w-full bg-[#F7F5FE] border border-[#E7E0FB] rounded-xl pl-10 pr-10 py-2.5 text-xs text-[#120E24] placeholder-slate-400 focus:outline-none focus:border-[#7C2CF5] focus:ring-1 focus:ring-[#7C2CF5] font-medium transition"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      className="absolute right-3.5 top-2.5 text-[#585172] hover:text-[#7C2CF5] transition p-0.5 rounded-md focus:outline-none"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {turnstileSiteKey && (
+                  <div className="flex flex-col items-center justify-center my-3">
+                    <div ref={turnstileContainerRef} className="min-h-[65px] flex items-center justify-center" />
+                    <div className="flex items-center gap-1.5 text-[10px] text-[#585172] mt-1.5 font-medium">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Protected by Cloudflare Turnstile Authentication</span>
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full mt-2 py-3 px-4 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white font-bold text-xs rounded-xl shadow-lg shadow-[#7C2CF5]/30 hover:shadow-[#7C2CF5]/50 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {loading ? 'Authenticating...' : 'Sign In to Workspace'}
+                </button>
+
+                <div className="text-center pt-2">
+                  <span className="text-xs text-[#585172]">Need a new account? </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetFormState();
+                      setMode('REGISTER');
+                    }}
+                    className="text-xs font-bold text-[#7C2CF5] hover:underline"
+                  >
+                    Register
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* MODE: REGISTER */}
+            {mode === 'REGISTER' && (
+              <form onSubmit={handleRegister} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#120E24] uppercase tracking-wider mb-1.5">
+                    Full Name
+                  </label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-[#7C2CF5] absolute left-3.5 top-3" />
+                    <input
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      required
+                      placeholder="e.g. Alex Johnson"
+                      className="w-full bg-[#F7F5FE] border border-[#E7E0FB] rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-[#120E24] placeholder-slate-400 focus:outline-none focus:border-[#7C2CF5]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#120E24] uppercase tracking-wider mb-1.5">
+                    Work Email
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-[#7C2CF5] absolute left-3.5 top-3" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      placeholder="name@codrix.co.in"
+                      className="w-full bg-[#F7F5FE] border border-[#E7E0FB] rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-[#120E24] placeholder-slate-400 focus:outline-none focus:border-[#7C2CF5]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#120E24] uppercase tracking-wider mb-1.5">
+                    Password (8+ chars, upper/lowercase, numbers & symbols)
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-[#7C2CF5] absolute left-3.5 top-3" />
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      placeholder="••••••••"
+                      className="w-full bg-[#F7F5FE] border border-[#E7E0FB] rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-[#120E24] placeholder-slate-400 focus:outline-none focus:border-[#7C2CF5]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#120E24] uppercase tracking-wider mb-1.5">
+                    Confirm Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-[#7C2CF5] absolute left-3.5 top-3" />
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required
+                      placeholder="••••••••"
+                      className="w-full bg-[#F7F5FE] border border-[#E7E0FB] rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-[#120E24] placeholder-slate-400 focus:outline-none focus:border-[#7C2CF5]"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full mt-2 py-3 px-4 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white font-bold text-xs rounded-xl shadow-lg shadow-[#7C2CF5]/30 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {loading ? 'Creating Account...' : 'Create Account'}
+                </button>
+
+                <div className="text-center pt-2">
+                  <span className="text-xs text-[#585172]">Already have an account? </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetFormState();
+                      setMode('LOGIN');
+                    }}
+                    className="text-xs font-bold text-[#7C2CF5] hover:underline"
+                  >
+                    Sign In
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* MODE: FORGOT PASSWORD */}
+            {mode === 'FORGOT_PASSWORD' && (
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                <p className="text-xs text-[#585172] leading-relaxed">
+                  Enter your registered work email address below. We'll send you a secure, single-use reset link that expires in 15 minutes.
+                </p>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#120E24] uppercase tracking-wider mb-1.5">
+                    Registered Email
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-[#7C2CF5] absolute left-3.5 top-3" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      placeholder="name@codrix.co.in"
+                      className="w-full bg-[#F7F5FE] border border-[#E7E0FB] rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-[#120E24] placeholder-slate-400 focus:outline-none focus:border-[#7C2CF5]"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3 px-4 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white font-bold text-xs rounded-xl shadow-lg shadow-[#7C2CF5]/30 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <KeyRound className="w-4 h-4" />
+                  <span>{loading ? 'Sending Instructions...' : 'Send Password Reset Link'}</span>
+                </button>
+
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetFormState();
+                      setMode('LOGIN');
+                    }}
+                    className="text-xs font-bold text-[#585172] hover:text-[#120E24] inline-flex items-center gap-1.5"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Back to Sign In</span>
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* MODE: RESET PASSWORD */}
+            {mode === 'RESET_PASSWORD' && (
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <p className="text-xs text-[#585172] leading-relaxed">
+                  Enter your new password below. It will be secured using production-grade Argon2id encryption.
+                </p>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#120E24] uppercase tracking-wider mb-1.5">
+                    New Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-[#7C2CF5] absolute left-3.5 top-3" />
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      required
+                      placeholder="••••••••"
+                      className="w-full bg-[#F7F5FE] border border-[#E7E0FB] rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-[#120E24] placeholder-slate-400 focus:outline-none focus:border-[#7C2CF5]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#120E24] uppercase tracking-wider mb-1.5">
+                    Confirm New Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-[#7C2CF5] absolute left-3.5 top-3" />
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required
+                      placeholder="••••••••"
+                      className="w-full bg-[#F7F5FE] border border-[#E7E0FB] rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-[#120E24] placeholder-slate-400 focus:outline-none focus:border-[#7C2CF5]"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3 px-4 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white font-bold text-xs rounded-xl shadow-lg shadow-[#7C2CF5]/30 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>{loading ? 'Updating Password...' : 'Save New Password & Sign In'}</span>
+                </button>
+
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetFormState();
+                      setMode('LOGIN');
+                      window.location.hash = '';
+                    }}
+                    className="text-xs font-bold text-[#585172] hover:text-[#120E24] inline-flex items-center gap-1.5"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Cancel</span>
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Security Footer Badge */}
+            <div className="mt-6 pt-4 border-t border-[#E7E0FB] flex items-center justify-between text-[10px] text-[#585172]">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span>Argon2id Encrypted</span>
               </div>
+              <span className="font-semibold text-[#7C2CF5]">
+                connect.codrix.co.in
+              </span>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-[#120E24] uppercase tracking-wider mb-1.5">
-                Confirm Password
-              </label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-[#7C2CF5] absolute left-3.5 top-3" />
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  placeholder="••••••••"
-                  className="w-full bg-[#F7F5FE] border border-[#E7E0FB] rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-[#120E24] placeholder-slate-400 focus:outline-none focus:border-[#7C2CF5]"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full mt-2 py-3 px-4 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white font-bold text-xs rounded-xl shadow-lg shadow-[#7C2CF5]/30 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              {loading ? 'Creating Account...' : 'Create Account'}
-            </button>
-
-            <div className="text-center pt-2">
-              <span className="text-xs text-[#585172]">Already have an account? </span>
-              <button
-                type="button"
-                onClick={() => {
-                  resetFormState();
-                  setMode('LOGIN');
-                }}
-                className="text-xs font-bold text-[#7C2CF5] hover:underline"
-              >
-                Sign In
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* MODE: FORGOT PASSWORD */}
-        {mode === 'FORGOT_PASSWORD' && (
-          <form onSubmit={handleForgotPassword} className="space-y-4">
-            <p className="text-xs text-[#585172] leading-relaxed">
-              Enter your registered work email address below. We'll send you a secure, single-use reset link that expires in 15 minutes.
-            </p>
-
-            <div>
-              <label className="block text-xs font-bold text-[#120E24] uppercase tracking-wider mb-1.5">
-                Registered Email
-              </label>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-[#7C2CF5] absolute left-3.5 top-3" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  placeholder="name@codrix.co.in"
-                  className="w-full bg-[#F7F5FE] border border-[#E7E0FB] rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-[#120E24] placeholder-slate-400 focus:outline-none focus:border-[#7C2CF5]"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 px-4 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white font-bold text-xs rounded-xl shadow-lg shadow-[#7C2CF5]/30 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              <KeyRound className="w-4 h-4" />
-              <span>{loading ? 'Sending Instructions...' : 'Send Password Reset Link'}</span>
-            </button>
-
-            <div className="text-center pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  resetFormState();
-                  setMode('LOGIN');
-                }}
-                className="text-xs font-bold text-[#585172] hover:text-[#120E24] inline-flex items-center gap-1.5"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Back to Sign In</span>
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* MODE: RESET PASSWORD */}
-        {mode === 'RESET_PASSWORD' && (
-          <form onSubmit={handleResetPassword} className="space-y-4">
-            <p className="text-xs text-[#585172] leading-relaxed">
-              Enter your new password below. It will be secured using production-grade Argon2id encryption.
-            </p>
-
-            <div>
-              <label className="block text-xs font-bold text-[#120E24] uppercase tracking-wider mb-1.5">
-                New Password
-              </label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-[#7C2CF5] absolute left-3.5 top-3" />
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  required
-                  placeholder="••••••••"
-                  className="w-full bg-[#F7F5FE] border border-[#E7E0FB] rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-[#120E24] placeholder-slate-400 focus:outline-none focus:border-[#7C2CF5]"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-[#120E24] uppercase tracking-wider mb-1.5">
-                Confirm New Password
-              </label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-[#7C2CF5] absolute left-3.5 top-3" />
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  placeholder="••••••••"
-                  className="w-full bg-[#F7F5FE] border border-[#E7E0FB] rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-[#120E24] placeholder-slate-400 focus:outline-none focus:border-[#7C2CF5]"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 px-4 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white font-bold text-xs rounded-xl shadow-lg shadow-[#7C2CF5]/30 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              <Check className="w-4 h-4" />
-              <span>{loading ? 'Updating Password...' : 'Save New Password & Sign In'}</span>
-            </button>
-
-            <div className="text-center pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  resetFormState();
-                  setMode('LOGIN');
-                  window.location.hash = '';
-                }}
-                className="text-xs font-bold text-[#585172] hover:text-[#120E24] inline-flex items-center gap-1.5"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Cancel</span>
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* Security Footer Badge */}
-        <div className="mt-6 pt-4 border-t border-[#E7E0FB] flex items-center justify-between text-[10px] text-[#585172]">
-          <div className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>Argon2id Encrypted & Cloudflare Protected</span>
           </div>
-          <span className="font-semibold text-[#7C2CF5]">
-            connect.codrix.co.in
-          </span>
         </div>
+
       </div>
     </div>
   );
