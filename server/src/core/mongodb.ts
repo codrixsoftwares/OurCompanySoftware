@@ -1,6 +1,6 @@
 import { MongoClient, Db, Collection } from 'mongodb';
-import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
+import { hashPassword } from './auth/passwordService.js';
 
 dotenv.config();
 
@@ -142,7 +142,7 @@ export async function syncMongoDatabase() {
 
   // 2. Fetch real team members from your existing `teammembers` collection
   const teamMembers = await cols.teammembers.find().toArray();
-  const defaultPasswordHash = await bcrypt.hash('Lakshay123', 10);
+  const defaultPasswordHash = await hashPassword('Lakshay123');
 
   // Map real team members to email and system roles
   const teamMapping: Record<string, { email: string; role: string; title: string; code: string }> = {
@@ -295,7 +295,8 @@ export async function ensureMongoIndexes() {
     const cols = getCollections();
     await Promise.allSettled([
       cols.tenants.createIndex({ slug: 1 }, { background: true }),
-      cols.users.createIndex({ primaryEmail: 1 }, { background: true }),
+      cols.users.createIndex({ primaryEmail: 1 }, { unique: true, background: true }),
+      cols.users.createIndex({ passwordResetTokenHash: 1 }, { background: true }),
       cols.memberships.createIndex({ tenantId: 1, userId: 1 }, { background: true }),
       cols.memberships.createIndex({ tenantId: 1, roles: 1 }, { background: true }),
       cols.employees.createIndex({ tenantId: 1, email: 1 }, { background: true }),

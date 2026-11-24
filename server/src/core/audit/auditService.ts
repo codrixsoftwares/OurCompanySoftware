@@ -4,10 +4,12 @@ import { UserContext } from '../auth/types.js';
 export interface AuditEventParams {
   tenantId?: string;
   user?: UserContext;
+  actorId?: string;
+  actorEmail?: string;
   action: string;
   resourceType: string;
   resourceId?: string;
-  details?: Record<string, any>;
+  details?: Record<string, any> | string;
   ipAddress?: string;
   requestId?: string;
 }
@@ -18,12 +20,12 @@ export class AuditService {
       const cols = getCollections();
       await cols.auditLogs.insertOne({
         tenantId: params.tenantId || params.user?.tenantId,
-        actorUserId: params.user?.userId,
-        actorEmail: params.user?.email,
+        actorUserId: params.actorId || params.user?.userId,
+        actorEmail: params.actorEmail || params.user?.email,
         action: params.action,
         resourceType: params.resourceType,
         resourceId: params.resourceId,
-        details: params.details ? JSON.stringify(params.details) : undefined,
+        details: typeof params.details === 'string' ? params.details : (params.details ? JSON.stringify(params.details) : undefined),
         ipAddress: params.ipAddress,
         requestId: params.requestId,
         createdAt: new Date()

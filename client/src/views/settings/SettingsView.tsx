@@ -18,6 +18,7 @@ import {
   Building2,
   Save,
   Key,
+  Lock,
   Layers,
   Sparkles
 } from 'lucide-react';
@@ -29,7 +30,14 @@ export const SettingsView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'org' | 'resend' | 'mailboxes' | 'test'>('org');
+  const [activeTab, setActiveTab] = useState<'org' | 'resend' | 'mailboxes' | 'test' | 'security'>('org');
+
+  // Security & Password Change State
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [passwordChangeLoading, setPasswordChangeLoading] = useState(false);
+  const [passwordChangeStatus, setPasswordChangeStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Organization Profile State
   const [legalName, setLegalName] = useState('CODRIX PRIVATE LIMITED');
@@ -272,6 +280,40 @@ export const SettingsView: React.FC = () => {
     }
   };
 
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordChangeStatus(null);
+
+    if (newPassword !== confirmNewPassword) {
+      setPasswordChangeStatus({ type: 'error', message: 'New passwords do not match' });
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setPasswordChangeStatus({ type: 'error', message: 'New password must be at least 8 characters long and contain uppercase, lowercase, digits, and special characters' });
+      return;
+    }
+
+    setPasswordChangeLoading(true);
+    try {
+      const res: any = await apiRequest('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          currentPassword,
+          newPassword
+        })
+      });
+      setPasswordChangeStatus({ type: 'success', message: res?.message || 'Password changed successfully! Fresh Argon2id hash saved.' });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+    } catch (err: any) {
+      setPasswordChangeStatus({ type: 'error', message: err.message || 'Failed to update password' });
+    } finally {
+      setPasswordChangeLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 text-[#585172]">
@@ -365,7 +407,8 @@ export const SettingsView: React.FC = () => {
           { id: 'org', label: '1. Organization & Domain', icon: Building2 },
           { id: 'resend', label: '2. Resend Email Engine', icon: Zap },
           { id: 'mailboxes', label: `3. Connected Channels (${mailboxes.length})`, icon: Layers },
-          { id: 'test', label: '4. Live Diagnostics & Test Send', icon: Send }
+          { id: 'test', label: '4. Live Diagnostics & Test Send', icon: Send },
+          { id: 'security', label: '5. Account Security & Password', icon: ShieldCheck }
         ].map((tab) => {
           const Icon = tab.icon;
           const active = activeTab === tab.id;
@@ -796,6 +839,114 @@ export const SettingsView: React.FC = () => {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* TAB 5: Account Security & Password */}
+      {activeTab === 'security' && (
+        <div className="bg-white border border-[#E7E0FB] rounded-2xl p-6 shadow-xs space-y-6">
+          <div className="flex justify-between items-center pb-3 border-b border-[#E7E0FB]">
+            <div>
+              <h3 className="text-sm font-bold text-[#120E24] flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-[#7C2CF5]" />
+                <span>Account Security & Argon2id Password Management</span>
+              </h3>
+              <p className="text-xs text-[#585172]">
+                Update your account password with production-grade Argon2id encryption. Your original password is never stored or exposed.
+              </p>
+            </div>
+            <span className="px-2.5 py-1 bg-emerald-50 text-emerald-800 text-[10px] font-bold rounded-lg border border-emerald-200 flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Argon2id Active</span>
+            </span>
+          </div>
+
+          {passwordChangeStatus && (
+            <div className={`p-4 rounded-xl border flex items-center gap-2 text-xs font-semibold ${
+              passwordChangeStatus.type === 'success'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-rose-50 border-rose-200 text-rose-800'
+            }`}>
+              {passwordChangeStatus.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              )}
+              <span>{passwordChangeStatus.message}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleChangePassword} className="space-y-4 max-w-lg">
+            <div>
+              <label className="block text-xs font-bold text-[#120E24] uppercase tracking-wider mb-1.5">
+                Current Password
+              </label>
+              <div className="relative">
+                <Key className="w-4 h-4 text-[#7C2CF5] absolute left-3.5 top-3" />
+                <input
+                  type="password"
+                  required
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-[#120E24] placeholder-slate-400 focus:outline-none focus:border-[#7C2CF5]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#120E24] uppercase tracking-wider mb-1.5">
+                New Password (8+ chars, upper/lowercase, numbers & symbols)
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-[#7C2CF5] absolute left-3.5 top-3" />
+                <input
+                  type="password"
+                  required
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-[#120E24] placeholder-slate-400 focus:outline-none focus:border-[#7C2CF5]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#120E24] uppercase tracking-wider mb-1.5">
+                Confirm New Password
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-[#7C2CF5] absolute left-3.5 top-3" />
+                <input
+                  type="password"
+                  required
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-[#FBFBFE] border border-[#E7E0FB] rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-[#120E24] placeholder-slate-400 focus:outline-none focus:border-[#7C2CF5]"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={passwordChangeLoading}
+              className="px-5 py-2.5 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white rounded-xl text-xs font-bold shadow-md shadow-[#7C2CF5]/25 transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {passwordChangeLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              <span>{passwordChangeLoading ? 'Updating Password with Argon2id...' : 'Update Password'}</span>
+            </button>
+          </form>
+
+          <div className="p-4 bg-[#F6F3FF] border border-[#E7E0FB] rounded-2xl text-xs text-[#585172] space-y-1.5 max-w-lg">
+            <div className="font-bold text-[#120E24] flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-[#7C2CF5]" />
+              <span>Argon2id Production Password Security Standards</span>
+            </div>
+            <p className="text-[11px] leading-relaxed">
+              When you update your password, CodRix applies Argon2id memory-hard hashing with cryptographically unique salts. Even in the event of an unauthorized database snapshot, stored password hashes cannot be decrypted.
+            </p>
+          </div>
         </div>
       )}
 
