@@ -125,7 +125,20 @@ export async function triggerStageJourneyEmail(applicationId: string, stageName:
 
     if (!candidate || !candidate.emailNormalized) return;
 
-    // Check templates on job opening or fallback to defaults
+    // Check custom template in EmailTemplateService first, then job opening, then fallback
+    const stageTemplateKeyMap: Record<string, string> = {
+      'Sourced': 'ATS_STAGE_SOURCED',
+      'Screened': 'ATS_STAGE_SCREENED',
+      'Technical Interview': 'ATS_STAGE_TECHNICAL_INTERVIEW',
+      'Executive Review': 'ATS_STAGE_EXECUTIVE_REVIEW',
+      'Internship': 'ATS_STAGE_INTERNSHIP',
+      'Offer Extended': 'ATS_STAGE_OFFER_EXTENDED',
+      'Hired': 'ATS_STAGE_HIRED'
+    };
+
+    const templateKey = stageTemplateKeyMap[stageName];
+    const customStudioTemplate = templateKey ? await EmailTemplateService.getTemplate(tenantId, templateKey) : null;
+
     const templateConfig = job?.emailTemplates?.[stageName] || DEFAULT_STAGE_EMAIL_TEMPLATES[stageName];
     if (!templateConfig || templateConfig.enabled === false) return;
 
@@ -188,13 +201,35 @@ export async function triggerStageJourneyEmail(applicationId: string, stageName:
     const fromAddress = `"${fromSenderName}" <${fromSenderEmail}>`;
     const replyToAddress = job?.replyToEmail || fromSenderEmail;
 
+    let finalSubject = subject;
+    let finalBodyText = bodyText;
+    let finalHtml = htmlBody;
+
+    // If Email Templates Studio has a customized template, render using EmailTemplateService!
+    if (customStudioTemplate) {
+      const rendered = EmailTemplateService.render(customStudioTemplate, {
+        candidateName,
+        jobTitle,
+        requestNo,
+        requisitionCode: requestNo,
+        candidateSerialNo: candidateSerialFormatted,
+        serialNo: serialNo.toString(),
+        companyName,
+        stageName,
+        portalUrl: 'https://connect.codrix.co.in'
+      });
+      finalSubject = rendered.subject;
+      finalBodyText = rendered.text;
+      finalHtml = rendered.html;
+    }
+
     const dispatchResult = await EmailDispatcher.send({
       tenantId,
       from: fromAddress,
       to: candidate.emailNormalized,
-      subject,
-      text: bodyText,
-      html: htmlBody,
+      subject: finalSubject,
+      text: finalBodyText,
+      html: finalHtml,
       replyTo: replyToAddress,
       channelEmail: fromSenderEmail
     });

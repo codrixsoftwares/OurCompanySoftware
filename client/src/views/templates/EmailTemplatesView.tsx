@@ -30,7 +30,7 @@ interface EmailTemplate {
   _id?: string;
   id?: string;
   templateKey: string;
-  category: 'RECRUITMENT' | 'HRMS' | 'CRM' | 'ENGINEERING' | 'GENERAL';
+  category: 'RECRUITMENT' | 'HRMS' | 'CRM' | 'PROJECTS' | 'ENGINEERING' | 'GENERAL';
   name: string;
   description: string;
   subject: string;
@@ -364,10 +364,12 @@ export const EmailTemplatesView: React.FC = () => {
         <div className="flex items-center gap-1 overflow-x-auto pb-1 md:pb-0">
           {[
             { id: 'ALL', label: 'All Templates' },
-            { id: 'RECRUITMENT', label: 'Recruitment & ATS' },
+            { id: 'RECRUITMENT', label: 'Recruitment & ATS (7 Stages)' },
             { id: 'HRMS', label: 'HRMS & Staff' },
-            { id: 'CRM', label: 'CRM & Client' },
-            { id: 'ENGINEERING', label: 'Engineering' }
+            { id: 'CRM', label: 'CRM & Outreach' },
+            { id: 'PROJECTS', label: 'Projects & Delivery' },
+            { id: 'ENGINEERING', label: 'Engineering Sprints' },
+            { id: 'GENERAL', label: 'Security & General' }
           ].map((cat) => (
             <button
               key={cat.id}
