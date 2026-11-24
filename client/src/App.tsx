@@ -20,6 +20,7 @@ const EngineeringView = lazy(() => import('./views/engineering/EngineeringView.j
 const HrmsView = lazy(() => import('./views/hrms/HrmsView.js').then((m) => ({ default: m.HrmsView })));
 const EmailTemplatesView = lazy(() => import('./views/templates/EmailTemplatesView.js').then((m) => ({ default: m.EmailTemplatesView })));
 const AuditView = lazy(() => import('./views/audit/AuditView.js').then((m) => ({ default: m.AuditView })));
+const AccessControlView = lazy(() => import('./views/access/AccessControlView.js').then((m) => ({ default: m.AccessControlView })));
 const SettingsView = lazy(() => import('./views/settings/SettingsView.js').then((m) => ({ default: m.SettingsView })));
 
 const MainApp: React.FC = () => {
@@ -27,6 +28,7 @@ const MainApp: React.FC = () => {
     session,
     loading,
     isCoreTeam,
+    isLakshay,
     canAccessEmailTemplates,
     showInactivityWarning,
     warningCountdownSeconds,
@@ -157,6 +159,18 @@ const MainApp: React.FC = () => {
             )
           )}
           {currentTab === 'audit' && <AuditView />}
+          {currentTab === 'access-control' && (
+            isLakshay ? (
+              <AccessControlView />
+            ) : (
+              <div className="p-12 text-center text-[#585172] bg-white rounded-3xl border border-[#E7E0FB] m-6">
+                <h2 className="text-base font-extrabold text-[#120E24]">Access Restricted</h2>
+                <p className="text-xs mt-1.5 max-w-md mx-auto">
+                  User Access Control is strictly restricted to Founder Superadmin Lakshay.
+                </p>
+              </div>
+            )
+          )}
           {currentTab === 'settings' && <SettingsView />}
         </Suspense>
       </AppShell>

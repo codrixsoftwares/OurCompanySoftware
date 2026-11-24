@@ -41,6 +41,8 @@ export interface AuthSession {
   employee?: Employee;
   roles: RoleCode[];
   availableTenants?: Tenant[];
+  allowedTabs?: string[];
+  isAccessRestricted?: boolean;
 }
 
 export interface PipelineStage {

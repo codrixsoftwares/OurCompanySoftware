@@ -35,6 +35,8 @@ export interface UserContext {
   departmentId?: string;
   branchId?: string;
   managerEmployeeId?: string;
+  allowedTabs?: string[];
+  isAccessRestricted?: boolean;
 }
 
 export interface AuthContext {

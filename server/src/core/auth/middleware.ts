@@ -88,7 +88,9 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
         employeeId: employee?._id ? employee._id.toString() : undefined,
         departmentId: employee?.departmentId,
         branchId: employee?.branchId,
-        roles: roles.length > 0 ? roles : [RoleCode.EMPLOYEE]
+        roles: roles.length > 0 ? roles : [RoleCode.EMPLOYEE],
+        allowedTabs: membership.allowedTabs || user.allowedTabs,
+        isAccessRestricted: Boolean(membership.isAccessRestricted || user.isAccessRestricted)
       }
     };
 

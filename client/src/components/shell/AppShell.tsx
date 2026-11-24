@@ -20,7 +20,8 @@ import {
   MessageSquare,
   FolderPlus,
   FolderKanban,
-  MailCheck
+  MailCheck,
+  UserCheck
 } from 'lucide-react';
 
 interface AppShellProps {
@@ -86,6 +87,7 @@ export const AppShell: React.FC<AppShellProps> = ({ currentTab, onSelectTab, chi
     { id: 'hrms', label: 'HRMS & Attendance', icon: CalendarCheck, visible: !isSalesOnly || hasRole('COMPANY_ADMIN') },
     { id: 'email-templates', label: 'Email Templates', icon: MailCheck, visible: canAccessEmailTemplates },
     { id: 'audit', label: 'Audit & Governance', icon: ShieldCheck, visible: hasRole('COMPANY_ADMIN', 'SUPER_ADMIN', 'BRANCH_MANAGER') },
+    { id: 'access-control', label: 'User Access Control', icon: UserCheck, visible: isLakshay },
     { id: 'settings', label: 'Domain & Settings', icon: Settings, visible: hasRole('COMPANY_ADMIN', 'SUPER_ADMIN') }
   ];
 
@@ -186,7 +188,14 @@ export const AppShell: React.FC<AppShellProps> = ({ currentTab, onSelectTab, chi
 
         {/* Nav Links */}
         <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
-          {navItems.filter((i) => i.visible).map((item) => {
+          {navItems.filter((i) => {
+            if (!i.visible) return false;
+            // Respect custom Superadmin limited workspace restrictions
+            if (session?.isAccessRestricted && Array.isArray(session?.allowedTabs)) {
+              return session.allowedTabs.includes(i.id);
+            }
+            return true;
+          }).map((item) => {
             const Icon = item.icon;
             const active = currentTab === item.id;
             return (

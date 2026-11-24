@@ -415,6 +415,8 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
         },
         employee: employee ? { ...employee, id: employee._id.toString() } : null,
         roles: activeMembership.roles || ['EMPLOYEE'],
+        allowedTabs: activeMembership.allowedTabs || user.allowedTabs,
+        isAccessRestricted: Boolean(activeMembership.isAccessRestricted || user.isAccessRestricted),
         availableTenants: [
           {
             id: tenant ? tenant._id.toString() : activeMembership.tenantId,
@@ -742,7 +744,9 @@ router.get('/me', requireAuth, async (req: Request, res: Response): Promise<void
           slug: tenant ? tenant.slug : 'codrix'
         },
         employee: employee ? { ...employee, id: employee._id.toString() } : null,
-        roles: req.auth!.user.roles
+        roles: req.auth!.user.roles,
+        allowedTabs: req.auth!.user.allowedTabs,
+        isAccessRestricted: req.auth!.user.isAccessRestricted
       }
     });
   } catch (error: any) {
@@ -875,6 +879,8 @@ router.post('/switch-account', requireAuth, async (req: Request, res: Response):
         },
         employee: employee ? { ...employee, id: employee._id.toString() } : null,
         roles: activeMembership.roles || ['EMPLOYEE'],
+        allowedTabs: activeMembership.allowedTabs || targetUser.allowedTabs,
+        isAccessRestricted: Boolean(activeMembership.isAccessRestricted || targetUser.isAccessRestricted),
         availableTenants: [
           {
             id: tenant ? tenant._id.toString() : activeMembership.tenantId,
@@ -1219,6 +1225,142 @@ router.get('/team', async (req: Request, res: Response): Promise<void> => {
     });
 
     res.json({ data: enrichedTeam });
+  } catch (error: any) {
+    res.status(500).json({ error: { code: 'SERVER_ERROR', message: error.message } });
+  }
+});
+
+// ==========================================
+// 14. GET /api/v1/auth/access-control/users (Superadmin Lakshay Only)
+// ==========================================
+router.get('/access-control/users', requireAuth, requireLakshaySuperAdmin, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const cols = getCollections();
+    const [users, memberships, employees] = await Promise.all([
+      cols.users.find({}, { projection: { passwordHash: 0, password: 0, passwordResetTokenHash: 0 } }).toArray(),
+      cols.memberships.find({}).toArray(),
+      cols.employees.find({}).toArray()
+    ]);
+
+    const membershipsByUserId = new Map<string, any>();
+    for (const m of memberships) {
+      membershipsByUserId.set(m.userId, m);
+    }
+
+    const employeesByUserId = new Map<string, any>();
+    for (const e of employees) {
+      if (e.userId) employeesByUserId.set(e.userId, e);
+    }
+
+    const list = users.map((u) => {
+      const uId = u._id.toString();
+      const m = membershipsByUserId.get(uId);
+      const e = employeesByUserId.get(uId);
+      return {
+        id: uId,
+        email: u.primaryEmail,
+        fullName: u.fullName || e?.fullName || 'User',
+        status: u.status || 'ACTIVE',
+        roles: m?.roles || ['EMPLOYEE'],
+        employeeCode: e?.employeeCode || 'CDX-000',
+        designation: e?.jobTitle || e?.designation || m?.roles?.[0] || 'Member',
+        allowedTabs: m?.allowedTabs || u.allowedTabs || null,
+        isAccessRestricted: Boolean(m?.isAccessRestricted || u.isAccessRestricted),
+        createdAt: u.createdAt,
+        updatedAt: u.updatedAt
+      };
+    });
+
+    res.json({ data: list });
+  } catch (error: any) {
+    res.status(500).json({ error: { code: 'SERVER_ERROR', message: error.message } });
+  }
+});
+
+// ==========================================
+// 15. PUT /api/v1/auth/access-control/users/:id (Superadmin Lakshay Only)
+// ==========================================
+router.put('/access-control/users/:id', requireAuth, requireLakshaySuperAdmin, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const targetUserId = req.params.id;
+    const { roles, allowedTabs, isAccessRestricted, status } = req.body;
+    const cols = getCollections();
+
+    let userQuery: any = {};
+    try {
+      userQuery = { _id: new ObjectId(targetUserId) };
+    } catch {
+      userQuery = { primaryEmail: targetUserId };
+    }
+
+    const targetUser = await cols.users.findOne(userQuery);
+    if (!targetUser) {
+      res.status(404).json({ error: { code: 'USER_NOT_FOUND', message: 'User not found' } });
+      return;
+    }
+
+    const actualUserId = targetUser._id.toString();
+
+    // Prevent revoking Founder Lakshay's superadmin status
+    if (targetUser.primaryEmail === 'lakshay@codrix.co.in' && roles && !roles.includes('COMPANY_ADMIN')) {
+      res.status(400).json({ error: { code: 'PROTECTED_ACCOUNT', message: 'Cannot remove COMPANY_ADMIN from Founder Superadmin account' } });
+      return;
+    }
+
+    const now = new Date();
+    const updateDoc: any = { updatedAt: now };
+    if (status !== undefined) updateDoc.status = status;
+    if (allowedTabs !== undefined) updateDoc.allowedTabs = allowedTabs;
+    if (isAccessRestricted !== undefined) updateDoc.isAccessRestricted = isAccessRestricted;
+
+    await cols.users.updateOne({ _id: targetUser._id }, { $set: updateDoc });
+
+    // Update active membership
+    const membershipUpdate: any = { updatedAt: now };
+    if (roles !== undefined && Array.isArray(roles)) membershipUpdate.roles = roles;
+    if (allowedTabs !== undefined) membershipUpdate.allowedTabs = allowedTabs;
+    if (isAccessRestricted !== undefined) membershipUpdate.isAccessRestricted = isAccessRestricted;
+
+    await cols.memberships.updateMany({ userId: actualUserId }, { $set: membershipUpdate });
+
+    // If access was restricted or modified, revoke active sessions so user logs in with new permissions immediately
+    if (isAccessRestricted || roles) {
+      SocketService.emitToTenant(req.auth!.user.tenantId, 'session:permissions_updated', {
+        userId: actualUserId,
+        email: targetUser.primaryEmail,
+        allowedTabs,
+        roles
+      });
+    }
+
+    AuditService.log({
+      tenantId: req.auth!.user.tenantId,
+      action: 'ACCESS_CONTROL_UPDATED',
+      actorId: req.auth!.user.userId,
+      actorEmail: req.auth!.user.email,
+      resourceType: 'USER_PERMISSIONS',
+      resourceId: actualUserId,
+      details: {
+        targetEmail: targetUser.primaryEmail,
+        newRoles: roles,
+        allowedTabs,
+        isAccessRestricted
+      }
+    });
+
+    res.json({
+      data: {
+        success: true,
+        message: `Access permissions for ${targetUser.primaryEmail} updated successfully.`,
+        user: {
+          id: actualUserId,
+          email: targetUser.primaryEmail,
+          roles,
+          allowedTabs,
+          isAccessRestricted
+        }
+      }
+    });
   } catch (error: any) {
     res.status(500).json({ error: { code: 'SERVER_ERROR', message: error.message } });
   }
