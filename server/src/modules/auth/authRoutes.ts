@@ -895,6 +895,106 @@ router.post('/switch-account', requireAuth, async (req: Request, res: Response):
   }
 });
 
+// Helper to detect user's today's tasks and activities across CRM, tasks, and audit logs
+async function detectUserTodayWorkingTasks(cols: any, session: any, lastWorkSummary?: string): Promise<string> {
+  try {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const taskItems: string[] = [];
+
+    // 1. Check CRM leads worked on today by this user
+    if (cols.crmLeads) {
+      const leadsToday = await cols.crmLeads
+        .find({
+          $or: [
+            { assignedBdeEmail: session.email },
+            { 'auditTrail.actorEmail': session.email },
+            { createdByEmail: session.email }
+          ],
+          updatedAt: { $gte: todayStart }
+        })
+        .sort({ updatedAt: -1 })
+        .limit(5)
+        .toArray();
+
+      if (leadsToday.length > 0) {
+        const leadTitles = leadsToday
+          .map((l: any) => `${l.leadCode || 'LEAD'} (${l.companyName})`)
+          .join(', ');
+        taskItems.push(`CRM Leads: ${leadsToday.length} lead(s) processed [${leadTitles}]`);
+      }
+    }
+
+    // 2. Check Tasks & Projects worked on today
+    if (cols.tasks) {
+      const tasksToday = await cols.tasks
+        .find({
+          $or: [
+            { assigneeEmail: session.email },
+            { assigneeId: session.userId }
+          ],
+          updatedAt: { $gte: todayStart }
+        })
+        .sort({ updatedAt: -1 })
+        .limit(5)
+        .toArray();
+
+      if (tasksToday.length > 0) {
+        const taskTitles = tasksToday.map((t: any) => `${t.title || 'Task'} [${t.status || 'Active'}]`).join(', ');
+        taskItems.push(`Tasks: ${tasksToday.length} active [${taskTitles}]`);
+      }
+    }
+
+    // 3. Check Mailbox messages sent today
+    if (cols.mailboxMessages) {
+      const emailsToday = await cols.mailboxMessages
+        .find({
+          senderEmail: session.email,
+          createdAt: { $gte: todayStart }
+        })
+        .limit(3)
+        .toArray();
+
+      if (emailsToday.length > 0) {
+        taskItems.push(`Mailbox: Sent ${emailsToday.length} email(s)`);
+      }
+    }
+
+    // 4. Check Audit logs for key actions taken today
+    if (cols.auditLogs) {
+      const recentAudits = await cols.auditLogs
+        .find({
+          actorEmail: session.email,
+          createdAt: { $gte: todayStart }
+        })
+        .sort({ createdAt: -1 })
+        .limit(6)
+        .toArray();
+
+      if (recentAudits.length > 0) {
+        const uniqueActions = Array.from(new Set(recentAudits.map((a: any) => a.action)));
+        taskItems.push(`Activities: ${uniqueActions.join(', ')}`);
+      }
+    }
+
+    if (taskItems.length > 0) {
+      const autoSummary = `[Auto-Detected on 15m Inactivity] ${taskItems.join(' • ')}`;
+      if (lastWorkSummary && !taskItems.some(item => item.includes(lastWorkSummary))) {
+        return `${autoSummary} (Workspace: ${lastWorkSummary})`;
+      }
+      return autoSummary;
+    }
+
+    if (lastWorkSummary) {
+      return `[Auto-Detected on 15m Inactivity] Active on ${lastWorkSummary}. State safely preserved.`;
+    }
+
+    return `[Auto-Detected on 15m Inactivity] Session idle for 15 mins. Active workspace state safely preserved.`;
+  } catch {
+    return lastWorkSummary || `[Auto-Detected on 15m Inactivity] Active workspace state preserved.`;
+  }
+}
+
 // ==========================================
 // 8. POST /api/v1/auth/session-heartbeat
 // ==========================================
@@ -928,6 +1028,9 @@ router.post('/session-heartbeat', requireAuth, async (req: Request, res: Respons
       const loginTime = session.loginAt ? new Date(session.loginAt).getTime() : now.getTime();
       const durationMs = now.getTime() - loginTime;
 
+      // Auto-check user's today's tasks
+      const autoSummary = await detectUserTodayWorkingTasks(cols, session, lastWorkSummary);
+
       await cols.userSessions.updateOne(
         { sessionId },
         {
@@ -936,18 +1039,40 @@ router.post('/session-heartbeat', requireAuth, async (req: Request, res: Respons
             logoutAt: now,
             sessionDurationMs: durationMs,
             logoutReason: 'INACTIVITY_15MIN',
-            lastWorkSummary: lastWorkSummary || session.lastWorkSummary || 'Workspace auto-preserved on 15m timeout',
+            todayWorkBrief: autoSummary,
+            lastWorkSummary: autoSummary,
             updatedAt: now
           }
         }
       );
+
+      try {
+        await cols.dailyUpdates.insertOne({
+          tenantId: session.tenantId,
+          userId: session.userId,
+          userEmail: session.email,
+          userName: session.fullName || session.userName || session.email,
+          projectId: 'AUTO_15M_TIMEOUT',
+          projectName: "Auto 15m Inactivity Task Capture",
+          completedItems: autoSummary,
+          inProgressItems: 'Preserved state upon 15m session timeout',
+          blockers: 'None',
+          nextDayPlan: 'Resume workspace on next login',
+          mode: 'AUTO_INACTIVITY_15M',
+          todayWorkBrief: autoSummary,
+          date: now.toISOString().split('T')[0],
+          createdAt: now,
+          updatedAt: now
+        });
+      } catch {}
 
       SocketService.emitToTenant(session.tenantId, 'session:timeout', {
         sessionId,
         userId: session.userId,
         userEmail: session.email,
         durationMs,
-        lastWorkSummary: lastWorkSummary || session.lastWorkSummary
+        todayWorkBrief: autoSummary,
+        lastWorkSummary: autoSummary
       });
 
       res.json({ data: { valid: false, reason: 'TIMEOUT_INACTIVE' } });
@@ -1001,6 +1126,9 @@ router.post('/session-timeout', async (req: Request, res: Response): Promise<voi
       const loginTime = session.loginAt ? new Date(session.loginAt).getTime() : now.getTime();
       const durationMs = now.getTime() - loginTime;
 
+      // Auto-check user's today's tasks
+      const autoSummary = await detectUserTodayWorkingTasks(cols, session, lastWorkSummary);
+
       await cols.userSessions.updateOne(
         { sessionId },
         {
@@ -1009,18 +1137,40 @@ router.post('/session-timeout', async (req: Request, res: Response): Promise<voi
             logoutAt: now,
             sessionDurationMs: durationMs,
             logoutReason: 'INACTIVITY_15MIN',
-            lastWorkSummary: lastWorkSummary || session.lastWorkSummary || 'Workspace progress saved on 15m timeout',
+            todayWorkBrief: autoSummary,
+            lastWorkSummary: autoSummary,
             updatedAt: now
           }
         }
       );
+
+      try {
+        await cols.dailyUpdates.insertOne({
+          tenantId: session.tenantId,
+          userId: session.userId,
+          userEmail: session.email,
+          userName: session.fullName || session.userName || session.email,
+          projectId: 'AUTO_15M_TIMEOUT',
+          projectName: "Auto 15m Inactivity Task Capture",
+          completedItems: autoSummary,
+          inProgressItems: 'Preserved state upon 15m session timeout',
+          blockers: 'None',
+          nextDayPlan: 'Resume workspace on next login',
+          mode: 'AUTO_INACTIVITY_15M',
+          todayWorkBrief: autoSummary,
+          date: now.toISOString().split('T')[0],
+          createdAt: now,
+          updatedAt: now
+        });
+      } catch {}
 
       SocketService.emitToTenant(session.tenantId, 'session:timeout', {
         sessionId,
         userId: session.userId,
         userEmail: session.email,
         durationMs,
-        lastWorkSummary: lastWorkSummary || session.lastWorkSummary
+        todayWorkBrief: autoSummary,
+        lastWorkSummary: autoSummary
       });
 
       AuditService.log({
@@ -1030,7 +1180,7 @@ router.post('/session-timeout', async (req: Request, res: Response): Promise<voi
         actorEmail: session.email,
         resourceType: 'AUTH_SESSION',
         resourceId: sessionId,
-        details: `Session timed out after 15m inactivity. Saved progress: "${lastWorkSummary || session.lastWorkSummary || 'Workspace State'}"`
+        details: `Session timed out after 15m inactivity. Auto-detected today's tasks: "${autoSummary}"`
       });
     }
 
@@ -1046,15 +1196,17 @@ router.post('/session-timeout', async (req: Request, res: Response): Promise<voi
 // ==========================================
 router.post('/logout', requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
-    const { sessionId } = req.body;
+    const { sessionId, todayWorkBrief, lastWorkSummary } = req.body;
     const cols = getCollections();
     const now = new Date();
+    const briefText = (todayWorkBrief || lastWorkSummary || '').trim();
 
     if (sessionId) {
       const session = await cols.userSessions.findOne({ sessionId });
       if (session) {
         const loginTime = session.loginAt ? new Date(session.loginAt).getTime() : now.getTime();
         const durationMs = now.getTime() - loginTime;
+        const manualBrief = briefText || 'Manual shift logout without brief';
 
         await cols.userSessions.updateOne(
           { sessionId },
@@ -1064,15 +1216,40 @@ router.post('/logout', requireAuth, async (req: Request, res: Response): Promise
               logoutAt: now,
               sessionDurationMs: durationMs,
               logoutReason: 'USER_LOGOUT',
+              todayWorkBrief: manualBrief,
+              lastWorkSummary: manualBrief,
               updatedAt: now
             }
           }
         );
 
+        // Record into dailyUpdates so it is formally tracked
+        try {
+          const user = req.auth?.user;
+          await cols.dailyUpdates.insertOne({
+            tenantId: user?.tenantId || session.tenantId,
+            userId: user?.userId || session.userId,
+            userEmail: user?.email || session.email,
+            userName: (user as any)?.fullName || session.userName || session.email,
+            projectId: 'MANUAL_LOGOUT_BRIEF',
+            projectName: "Today's Working Tasks",
+            completedItems: manualBrief,
+            inProgressItems: 'Shift logged out by user',
+            blockers: 'None',
+            nextDayPlan: 'Continue next assigned shift',
+            mode: 'MANUAL_LOGOUT',
+            todayWorkBrief: manualBrief,
+            date: now.toISOString().split('T')[0],
+            createdAt: now,
+            updatedAt: now
+          });
+        } catch {}
+
         SocketService.emitToTenant(session.tenantId, 'session:logged_out', {
           sessionId,
           userId: session.userId,
-          userEmail: session.email
+          userEmail: session.email,
+          todayWorkBrief: manualBrief
         });
       }
     }
@@ -1086,7 +1263,9 @@ router.post('/logout', requireAuth, async (req: Request, res: Response): Promise
       actorEmail: req.auth!.user.email,
       resourceType: 'AUTH_SESSION',
       resourceId: sessionId || 'MANUAL',
-      details: `User explicitly logged out from workspace`
+      details: briefText
+        ? `User manually logged out with Today's Working Brief: "${briefText}"`
+        : `User explicitly logged out from workspace`
     });
 
     res.json({ data: { message: 'Logged out successfully' } });

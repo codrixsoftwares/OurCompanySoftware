@@ -17,7 +17,9 @@ import {
   PowerOff,
   Filter,
   Search,
-  Sparkles
+  Sparkles,
+  FileText,
+  X
 } from 'lucide-react';
 
 interface UserSessionRecord {
@@ -39,6 +41,8 @@ interface UserSessionRecord {
   logoutReason?: string;
   sessionDurationMs?: number;
   lastWorkSummary?: string;
+  todayWorkBrief?: string;
+  logoutAt?: string;
 }
 
 export const AuditView: React.FC = () => {
@@ -60,6 +64,7 @@ export const AuditView: React.FC = () => {
   const [sessionSearch, setSessionSearch] = useState('');
   const [sessionFilterStatus, setSessionFilterStatus] = useState<string>('ALL');
   const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [selectedSessionBrief, setSelectedSessionBrief] = useState<UserSessionRecord | null>(null);
 
   const loadAuditLogs = () => {
     setAuditLoading(true);
@@ -306,7 +311,7 @@ export const AuditView: React.FC = () => {
                     <th className="py-3 px-4">IP & Network</th>
                     <th className="py-3 px-4">Device & Client</th>
                     <th className="py-3 px-4">Login & Duration</th>
-                    <th className="py-3 px-4">Last Work Saved / Activity</th>
+                    <th className="py-3 px-4">Today's Working Tasks / Shift Brief</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -392,14 +397,51 @@ export const AuditView: React.FC = () => {
                           </div>
                         </td>
 
-                        {/* Last Work Saved */}
+                        {/* Today's Working Tasks / Shift Brief */}
                         <td className="py-3 px-4">
-                          <div className="max-w-xs text-xs font-medium text-[#120E24] line-clamp-2">
-                            {s.lastWorkSummary || 'Workspace Session'}
-                          </div>
-                          <div className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1 mt-0.5">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                            <span>Auto-saved safely</span>
+                          <div className="max-w-sm">
+                            {s.status === 'LOGGED_OUT' && (
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-extrabold bg-purple-50 text-[#7C2CF5] border border-purple-200">
+                                  <FileText className="w-2.5 h-2.5" />
+                                  <span>MANUAL LOGOUT BRIEF</span>
+                                </span>
+                              </div>
+                            )}
+                            {s.status === 'TIMEOUT_INACTIVE' && (
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-extrabold bg-amber-50 text-amber-800 border border-amber-200">
+                                  <Clock className="w-2.5 h-2.5" />
+                                  <span>AUTO-PRESERVED (15M TIMEOUT)</span>
+                                </span>
+                              </div>
+                            )}
+                            {s.status === 'ACTIVE' && (
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                  <Activity className="w-2.5 h-2.5" />
+                                  <span>IN PROGRESS</span>
+                                </span>
+                              </div>
+                            )}
+
+                            <p
+                              onClick={() => setSelectedSessionBrief(s)}
+                              title="Click to inspect full today's working brief"
+                              className="text-xs font-semibold text-[#120E24] line-clamp-2 cursor-pointer hover:text-[#7C2CF5] transition"
+                            >
+                              {s.todayWorkBrief || s.lastWorkSummary || 'Workspace session without notes'}
+                            </p>
+
+                            <button
+                              type="button"
+                              onClick={() => setSelectedSessionBrief(s)}
+                              className="text-[10px] text-[#7C2CF5] hover:underline font-bold mt-1 flex items-center gap-1 cursor-pointer"
+                            >
+                              <FileText className="w-3 h-3" />
+                              <span>Inspect full brief</span>
+                              <span>&rarr;</span>
+                            </button>
                           </div>
                         </td>
 
@@ -483,6 +525,108 @@ export const AuditView: React.FC = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+      {/* Modal: Superadmin Lakshay Exclusive Daily Working Brief & Task Inspector */}
+      {selectedSessionBrief && (
+        <div className="fixed inset-0 bg-[#120E24]/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-[#E7E0FB]">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E7E0FB] mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-[#7C2CF5]">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-[#120E24] text-sm">
+                    Today's Working Tasks & Shift Audit
+                  </h3>
+                  <p className="text-[11px] text-[#585172]">
+                    Superadmin Governance Telemetry &bull; Confidential to Lakshay
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedSessionBrief(null)}
+                className="text-[#585172] hover:text-[#120E24] p-1.5 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* Employee Summary Card */}
+              <div className="p-3.5 bg-[#F7F5FE] rounded-2xl border border-[#E7E0FB] grid grid-cols-2 gap-3">
+                <div>
+                  <span className="text-[10px] text-[#585172] font-semibold uppercase">Employee</span>
+                  <div className="font-bold text-[#120E24] text-xs mt-0.5">{selectedSessionBrief.fullName || 'User'}</div>
+                  <div className="text-[11px] text-[#585172]">{selectedSessionBrief.email}</div>
+                  <div className="text-[10px] text-[#7C2CF5] font-semibold mt-0.5">
+                    {selectedSessionBrief.role} {selectedSessionBrief.employeeCode ? `• ${selectedSessionBrief.employeeCode}` : ''}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[10px] text-[#585172] font-semibold uppercase">Session Details</span>
+                  <div className="text-[11px] text-[#120E24] font-medium mt-0.5">
+                    Login: {new Date(selectedSessionBrief.loginAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                  <div className="text-[11px] text-[#585172]">
+                    Duration: {formatDuration(selectedSessionBrief.sessionDurationMs, selectedSessionBrief.loginAt, selectedSessionBrief.lastActiveAt)}
+                  </div>
+                  <div className="text-[10px] font-mono text-[#585172] mt-0.5">
+                    IP: {selectedSessionBrief.ip || '127.0.0.1'} &bull; {selectedSessionBrief.device || 'Desktop'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Status / Submission Mode */}
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-[#120E24]">Telemetry Source:</span>
+                {selectedSessionBrief.status === 'LOGGED_OUT' && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-[#7C2CF5] border border-purple-200">
+                    <FileText className="w-3 h-3" />
+                    <span>Submitted Manually via Logout Button Brief</span>
+                  </span>
+                )}
+                {selectedSessionBrief.status === 'TIMEOUT_INACTIVE' && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                    <Clock className="w-3 h-3 text-amber-700" />
+                    <span>Auto-Captured by 15-Minute Inactivity Defense</span>
+                  </span>
+                )}
+                {selectedSessionBrief.status === 'ACTIVE' && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    <Activity className="w-3 h-3 text-emerald-700" />
+                    <span>Currently Active Session</span>
+                  </span>
+                )}
+              </div>
+
+              {/* Today's Working Brief Text */}
+              <div>
+                <label className="block font-bold text-[#120E24] mb-1.5 text-xs">
+                  Today's Working Tasks & Activities
+                </label>
+                <div className="p-4 bg-[#FBFBFE] border border-[#E7E0FB] rounded-2xl text-xs text-[#120E24] leading-relaxed whitespace-pre-wrap max-h-56 overflow-y-auto font-medium">
+                  {selectedSessionBrief.todayWorkBrief || selectedSessionBrief.lastWorkSummary || 'No specific task brief submitted.'}
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-[#E7E0FB] flex items-center justify-between">
+                <span className="text-[11px] text-[#585172] font-mono">
+                  Session ID: {selectedSessionBrief.sessionId}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedSessionBrief(null)}
+                  className="px-4 py-2 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white rounded-xl font-bold shadow-xs transition cursor-pointer"
+                >
+                  Close Inspection
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

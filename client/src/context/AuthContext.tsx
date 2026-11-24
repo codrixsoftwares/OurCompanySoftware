@@ -8,7 +8,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password?: string, turnstileToken?: string) => Promise<void>;
   quickSwitchRole: (email: string) => Promise<void>;
-  logout: () => void;
+  logout: (todayWorkBrief?: string) => Promise<void>;
   hasRole: (...roles: RoleCode[]) => boolean;
   isCoreTeam: boolean;
   isLakshay: boolean;
@@ -251,12 +251,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const logout = async () => {
+  const logout = async (todayWorkBrief?: string) => {
     try {
       const sessId = currentSessionId || localStorage.getItem('codrix_session_id');
+      const activeSummary = workStateManager.getActiveSummary();
       await apiRequest('/auth/logout', {
         method: 'POST',
-        body: JSON.stringify({ sessionId: sessId })
+        body: JSON.stringify({
+          sessionId: sessId,
+          todayWorkBrief: todayWorkBrief || undefined,
+          lastWorkSummary: todayWorkBrief || activeSummary
+        })
       });
     } catch {
       // safe fallback

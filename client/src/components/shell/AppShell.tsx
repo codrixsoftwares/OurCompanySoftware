@@ -21,7 +21,8 @@ import {
   FolderPlus,
   FolderKanban,
   MailCheck,
-  UserCheck
+  UserCheck,
+  FileText
 } from 'lucide-react';
 
 interface AppShellProps {
@@ -37,14 +38,9 @@ export const AppShell: React.FC<AppShellProps> = ({ currentTab, onSelectTab, chi
   const [socketOnline, setSocketOnline] = useState(false);
   const [latency, setLatency] = useState(0);
 
-  // Mandatory Pre-Logout Daily Update State
+  // Mandatory Pre-Logout Daily Working Brief State
   const [preLogoutModalOpen, setPreLogoutModalOpen] = useState(false);
-  const [logoutProjects, setLogoutProjects] = useState<any[]>([]);
-  const [logoutSelectedProjectId, setLogoutSelectedProjectId] = useState<string>('');
-  const [logoutCompleted, setLogoutCompleted] = useState<string>('');
-  const [logoutInProgress, setLogoutInProgress] = useState<string>('');
-  const [logoutBlockers, setLogoutBlockers] = useState<string>('');
-  const [logoutNextDay, setLogoutNextDay] = useState<string>('');
+  const [logoutWorkingBrief, setLogoutWorkingBrief] = useState('');
   const [logoutSubmitting, setLogoutSubmitting] = useState(false);
 
   useEffect(() => {
@@ -129,62 +125,27 @@ export const AppShell: React.FC<AppShellProps> = ({ currentTab, onSelectTab, chi
   const handleLogoutClick = async () => {
     if (isLakshay) {
       if (window.confirm('Founder Session: Confirm log out from CodRix Enterprise OS?')) {
-        logout();
+        await logout();
       }
       return;
     }
 
-    try {
-      const res = await apiRequest<{ submitted: boolean; update: any }>('/engineering/daily-updates/today');
-      if (res && res.submitted) {
-        if (window.confirm("Today's daily project update has been recorded. Proceed to log out?")) {
-          logout();
-        }
-      } else {
-        const projs = await apiRequest<any[]>('/engineering/projects');
-        setLogoutProjects(projs || []);
-        if (projs && projs.length > 0) {
-          setLogoutSelectedProjectId(projs[0].id || projs[0]._id);
-        }
-        setPreLogoutModalOpen(true);
-      }
-    } catch {
-      try {
-        const projs = await apiRequest<any[]>('/engineering/projects');
-        setLogoutProjects(projs || []);
-        if (projs && projs.length > 0) {
-          setLogoutSelectedProjectId(projs[0].id || projs[0]._id);
-        }
-      } catch {}
-      setPreLogoutModalOpen(true);
-    }
+    setLogoutWorkingBrief('');
+    setPreLogoutModalOpen(true);
   };
 
   const handlePreLogoutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!logoutCompleted.trim() || !logoutInProgress.trim()) {
-      alert('Please summarize what you completed today and what is currently in progress.');
+    if (!logoutWorkingBrief.trim()) {
+      alert('Please brief your today working before logging out.');
       return;
     }
     setLogoutSubmitting(true);
     try {
-      const selectedProj = logoutProjects.find((p) => (p.id || p._id) === logoutSelectedProjectId);
-      await apiRequest('/engineering/daily-updates', {
-        method: 'POST',
-        body: JSON.stringify({
-          projectId: logoutSelectedProjectId,
-          projectName: selectedProj?.name || 'General Project Work',
-          completedItems: logoutCompleted,
-          inProgressItems: logoutInProgress,
-          blockers: logoutBlockers || 'None',
-          nextDayPlan: logoutNextDay || 'Continue active milestones'
-        })
-      });
-      alert('Daily project update submitted successfully! Logging out...');
+      await logout(logoutWorkingBrief.trim());
       setPreLogoutModalOpen(false);
-      logout();
     } catch (err: any) {
-      alert(err.message || 'Error submitting daily update.');
+      alert(err.message || 'Error recording working update.');
     } finally {
       setLogoutSubmitting(false);
     }
@@ -432,120 +393,63 @@ export const AppShell: React.FC<AppShellProps> = ({ currentTab, onSelectTab, chi
         </main>
       </div>
 
-      {/* Mandatory Pre-Logout Daily Project Update Modal */}
+      {/* Mandatory Pre-Logout Daily Working Brief Modal */}
       {preLogoutModalOpen && (
         <div className="fixed inset-0 bg-[#120E24]/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E7E0FB]">
             <div className="flex items-center justify-between pb-3 border-b border-[#E7E0FB] mb-4">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
-                  <AlertCircle className="w-4 h-4" />
+                <div className="w-8 h-8 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-[#7C2CF5]">
+                  <FileText className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-[#120E24] text-sm">Daily Project Update Required</h3>
+                  <h3 className="font-extrabold text-[#120E24] text-sm">Daily Working Update Required</h3>
                   <p className="text-[11px] text-[#585172]">
-                    Please submit your daily progress update before logging out for today.
+                    Please brief your today's working tasks and progress before signing out.
                   </p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setPreLogoutModalOpen(false)}
-                className="text-[#585172] hover:text-[#120E24] p-1"
+                className="text-[#585172] hover:text-[#120E24] p-1 rounded-lg hover:bg-slate-100 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handlePreLogoutSubmit} className="space-y-3.5 text-xs">
-              {/* Project Selection */}
+            <form onSubmit={handlePreLogoutSubmit} className="space-y-4 text-xs">
               <div>
-                <label className="block font-bold text-[#120E24] mb-1">Active Project Working On</label>
-                <select
-                  value={logoutSelectedProjectId}
-                  onChange={(e) => setLogoutSelectedProjectId(e.target.value)}
-                  className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3.5 py-2 text-[#120E24] font-semibold focus:border-[#7C2CF5] focus:outline-none"
-                >
-                  {logoutProjects.map((p) => (
-                    <option key={p.id || p._id} value={p.id || p._id}>
-                      {p.projectCode} &bull; {p.name}
-                    </option>
-                  ))}
-                  {logoutProjects.length === 0 && (
-                    <option value="">General Project Deliverables</option>
-                  )}
-                </select>
-              </div>
-
-              {/* Completed today */}
-              <div>
-                <label className="block font-bold text-[#120E24] mb-1">
-                  1. What did you complete on this project today? <span className="text-rose-500">*</span>
+                <label className="block font-bold text-[#120E24] mb-1.5 text-xs">
+                  Brief your today working <span className="text-rose-500">*</span>
                 </label>
                 <textarea
                   required
-                  rows={2}
-                  value={logoutCompleted}
-                  onChange={(e) => setLogoutCompleted(e.target.value)}
-                  className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3.5 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                  placeholder="e.g. Completed lead qualification drawer and synced database records"
+                  rows={5}
+                  value={logoutWorkingBrief}
+                  onChange={(e) => setLogoutWorkingBrief(e.target.value)}
+                  className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-2xl p-3.5 text-[#120E24] text-xs leading-relaxed focus:border-[#7C2CF5] focus:outline-none focus:ring-2 focus:ring-[#7C2CF5]/10 resize-none transition"
+                  placeholder="Mention what tasks, deliverables, client leads, tickets, or modules you worked on today before signing off..."
                 />
+                <div className="text-[11px] text-[#585172] mt-1.5 flex items-center justify-between">
+                  <span>Recorded in Audit & Governance for Superadmin review</span>
+                  <span>{logoutWorkingBrief.trim().length} chars</span>
+                </div>
               </div>
 
-              {/* In Progress */}
-              <div>
-                <label className="block font-bold text-[#120E24] mb-1">
-                  2. What is currently in progress? <span className="text-rose-500">*</span>
-                </label>
-                <textarea
-                  required
-                  rows={2}
-                  value={logoutInProgress}
-                  onChange={(e) => setLogoutInProgress(e.target.value)}
-                  className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3.5 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                  placeholder="e.g. Unit tests for real-time WebSocket connection pool"
-                />
-              </div>
-
-              {/* Blockers */}
-              <div>
-                <label className="block font-bold text-[#120E24] mb-1">
-                  3. Any blockers or dependencies?
-                </label>
-                <input
-                  type="text"
-                  value={logoutBlockers}
-                  onChange={(e) => setLogoutBlockers(e.target.value)}
-                  className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3.5 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                  placeholder="e.g. None or waiting on PR approval from Parth"
-                />
-              </div>
-
-              {/* Tomorrow's plan */}
-              <div>
-                <label className="block font-bold text-[#120E24] mb-1">
-                  4. Planned outcomes for tomorrow
-                </label>
-                <input
-                  type="text"
-                  value={logoutNextDay}
-                  onChange={(e) => setLogoutNextDay(e.target.value)}
-                  className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3.5 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                  placeholder="e.g. Finalize sprint deployment and review test suite"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-[#E7E0FB] flex items-center justify-between gap-3">
+              <div className="pt-3 border-t border-[#E7E0FB] flex items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setPreLogoutModalOpen(false)}
-                  className="px-4 py-2 border border-[#E7E0FB] rounded-xl text-[#585172] hover:bg-[#F7F5FE] font-bold transition"
+                  disabled={logoutSubmitting}
+                  className="px-4 py-2 border border-[#E7E0FB] rounded-xl text-[#585172] hover:bg-[#F7F5FE] font-bold transition cursor-pointer disabled:opacity-50"
                 >
                   Cancel & Return
                 </button>
                 <button
                   type="submit"
-                  disabled={logoutSubmitting}
-                  className="px-4 py-2 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white rounded-xl font-bold shadow-md shadow-[#7C2CF5]/25 transition flex items-center gap-1.5"
+                  disabled={logoutSubmitting || !logoutWorkingBrief.trim()}
+                  className="px-4 py-2 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white rounded-xl font-bold shadow-md shadow-[#7C2CF5]/25 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>{logoutSubmitting ? 'Recording & Logging Out...' : 'Submit Update & Log Out'}</span>
