@@ -687,16 +687,13 @@ export const LoginView: React.FC = () => {
         {/* ========================================================= */}
         <div className="order-1 lg:order-2 lg:col-span-6 flex flex-col items-center justify-center text-center py-6 lg:py-12 space-y-6">
           
-          {/* Logo container in center with ambient luminous backing */}
-          <div className="relative group inline-block">
-            <div className="absolute -inset-3 bg-gradient-to-r from-[#A855F7] via-[#C084FC] to-[#7C2CF5] rounded-3xl blur-2xl opacity-40 group-hover:opacity-70 transition duration-500"></div>
-            <div className="relative p-5 sm:p-6 rounded-3xl bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl flex items-center justify-center">
-              <img
-                src="/logo-icon.png"
-                alt="CodRix Official Logo"
-                className="w-20 h-20 sm:w-28 sm:h-28 object-contain drop-shadow-2xl"
-              />
-            </div>
+          {/* Official Logo (No background) */}
+          <div className="inline-block">
+            <img
+              src="/logo-icon.png"
+              alt="CodRix Official Logo"
+              className="w-24 h-24 sm:w-32 sm:h-32 object-contain drop-shadow-2xl"
+            />
           </div>
 
           {/* Typography: "CodRix" and "Connect" in Center */}
