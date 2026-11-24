@@ -1,21 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.js';
-import { LoginView } from './views/auth/LoginView.js';
 import { ScreenSizeGuard } from './components/common/ScreenSizeGuard.js';
 import { ErrorBoundary } from './components/common/ErrorBoundary.js';
 import { AppShell } from './components/shell/AppShell.js';
-import { DashboardView } from './views/dashboards/DashboardView.js';
-import { RecruitmentView } from './views/recruitment/RecruitmentView.js';
-import { MailboxView } from './views/mailbox/MailboxView.js';
-import { CrmView } from './views/crm/CrmView.js';
-import { ProjectsView } from './views/projects/ProjectsView.js';
-import { EngineeringView } from './views/engineering/EngineeringView.js';
-import { HrmsView } from './views/hrms/HrmsView.js';
-import { EmailTemplatesView } from './views/templates/EmailTemplatesView.js';
-import { AuditView } from './views/audit/AuditView.js';
-import { SettingsView } from './views/settings/SettingsView.js';
+import { ViewLoadingFallback } from './components/common/ViewLoadingFallback.js';
 import { workStateManager } from './core/workStateManager.js';
 import { Clock, ShieldAlert, CheckCircle2 } from 'lucide-react';
+
+// ==========================================
+// Lazy-Loaded Enterprise Views (Code-Splitting)
+// ==========================================
+const LoginView = lazy(() => import('./views/auth/LoginView.js').then((m) => ({ default: m.LoginView })));
+const DashboardView = lazy(() => import('./views/dashboards/DashboardView.js').then((m) => ({ default: m.DashboardView })));
+const RecruitmentView = lazy(() => import('./views/recruitment/RecruitmentView.js').then((m) => ({ default: m.RecruitmentView })));
+const MailboxView = lazy(() => import('./views/mailbox/MailboxView.js').then((m) => ({ default: m.MailboxView })));
+const CrmView = lazy(() => import('./views/crm/CrmView.js').then((m) => ({ default: m.CrmView })));
+const ProjectsView = lazy(() => import('./views/projects/ProjectsView.js').then((m) => ({ default: m.ProjectsView })));
+const EngineeringView = lazy(() => import('./views/engineering/EngineeringView.js').then((m) => ({ default: m.EngineeringView })));
+const HrmsView = lazy(() => import('./views/hrms/HrmsView.js').then((m) => ({ default: m.HrmsView })));
+const EmailTemplatesView = lazy(() => import('./views/templates/EmailTemplatesView.js').then((m) => ({ default: m.EmailTemplatesView })));
+const AuditView = lazy(() => import('./views/audit/AuditView.js').then((m) => ({ default: m.AuditView })));
+const SettingsView = lazy(() => import('./views/settings/SettingsView.js').then((m) => ({ default: m.SettingsView })));
 
 const MainApp: React.FC = () => {
   const {
@@ -52,7 +57,11 @@ const MainApp: React.FC = () => {
   }
 
   if (!session) {
-    return <LoginView />;
+    return (
+      <Suspense fallback={<ViewLoadingFallback label="Loading Authentication..." />}>
+        <LoginView />
+      </Suspense>
+    );
   }
 
   return (
@@ -103,51 +112,53 @@ const MainApp: React.FC = () => {
       )}
 
       <AppShell currentTab={currentTab} onSelectTab={handleSelectTab}>
-        {currentTab === 'dashboard' && <DashboardView onNavigate={handleSelectTab} />}
-        {currentTab === 'recruitment' && <RecruitmentView />}
-        {currentTab === 'mailbox' && (
-          isCoreTeam ? (
-            <MailboxView />
-          ) : (
-            <div className="p-12 text-center text-[#585172] bg-white rounded-3xl border border-[#E7E0FB] m-6">
-              <h2 className="text-base font-extrabold text-[#120E24]">Access Restricted</h2>
-              <p className="text-xs mt-1.5 max-w-md mx-auto">
-                Mailbox Workspace is restricted to core leadership (Lakshay, Anshuman, Suryansh, Parth, Diya, and Ishita).
-              </p>
-            </div>
-          )
-        )}
-        {currentTab === 'crm' && <CrmView />}
-        {currentTab === 'projects' && (
-          isCoreTeam ? (
-            <ProjectsView onNavigate={handleSelectTab} />
-          ) : (
-            <div className="p-12 text-center text-[#585172] bg-white rounded-3xl border border-[#E7E0FB] m-6">
-              <h2 className="text-base font-extrabold text-[#120E24]">Access Restricted</h2>
-              <p className="text-xs mt-1.5 max-w-md mx-auto">
-                Projects Database is restricted to core leadership (Lakshay, Anshuman, Suryansh, Parth, Diya, and Ishita).
-              </p>
-            </div>
-          )
-        )}
-        {currentTab === 'engineering' && <EngineeringView onNavigate={handleSelectTab} />}
-        {currentTab === 'hrms' && <HrmsView />}
-        {currentTab === 'email-templates' && (
-          canAccessEmailTemplates ? (
-            <ErrorBoundary fallbackTitle="Email Templates Studio encountered a temporary issue">
-              <EmailTemplatesView />
-            </ErrorBoundary>
-          ) : (
-            <div className="p-12 text-center text-[#585172] bg-white rounded-3xl border border-[#E7E0FB] m-6">
-              <h2 className="text-base font-extrabold text-[#120E24]">Access Restricted</h2>
-              <p className="text-xs mt-1.5 max-w-md mx-auto">
-                Email Templates Studio is strictly restricted to SuperAdmin Leadership (Lakshay, Diya, Parth, Anshuman, and Ishita).
-              </p>
-            </div>
-          )
-        )}
-        {currentTab === 'audit' && <AuditView />}
-        {currentTab === 'settings' && <SettingsView />}
+        <Suspense fallback={<ViewLoadingFallback label={`Loading ${currentTab.toUpperCase()} Workspace...`} />}>
+          {currentTab === 'dashboard' && <DashboardView onNavigate={handleSelectTab} />}
+          {currentTab === 'recruitment' && <RecruitmentView />}
+          {currentTab === 'mailbox' && (
+            isCoreTeam ? (
+              <MailboxView />
+            ) : (
+              <div className="p-12 text-center text-[#585172] bg-white rounded-3xl border border-[#E7E0FB] m-6">
+                <h2 className="text-base font-extrabold text-[#120E24]">Access Restricted</h2>
+                <p className="text-xs mt-1.5 max-w-md mx-auto">
+                  Mailbox Workspace is restricted to core leadership (Lakshay, Anshuman, Suryansh, Parth, Diya, and Ishita).
+                </p>
+              </div>
+            )
+          )}
+          {currentTab === 'crm' && <CrmView />}
+          {currentTab === 'projects' && (
+            isCoreTeam ? (
+              <ProjectsView onNavigate={handleSelectTab} />
+            ) : (
+              <div className="p-12 text-center text-[#585172] bg-white rounded-3xl border border-[#E7E0FB] m-6">
+                <h2 className="text-base font-extrabold text-[#120E24]">Access Restricted</h2>
+                <p className="text-xs mt-1.5 max-w-md mx-auto">
+                  Projects Database is restricted to core leadership (Lakshay, Anshuman, Suryansh, Parth, Diya, and Ishita).
+                </p>
+              </div>
+            )
+          )}
+          {currentTab === 'engineering' && <EngineeringView onNavigate={handleSelectTab} />}
+          {currentTab === 'hrms' && <HrmsView />}
+          {currentTab === 'email-templates' && (
+            canAccessEmailTemplates ? (
+              <ErrorBoundary fallbackTitle="Email Templates Studio encountered a temporary issue">
+                <EmailTemplatesView />
+              </ErrorBoundary>
+            ) : (
+              <div className="p-12 text-center text-[#585172] bg-white rounded-3xl border border-[#E7E0FB] m-6">
+                <h2 className="text-base font-extrabold text-[#120E24]">Access Restricted</h2>
+                <p className="text-xs mt-1.5 max-w-md mx-auto">
+                  Email Templates Studio is strictly restricted to SuperAdmin Leadership (Lakshay, Diya, Parth, Anshuman, and Ishita).
+                </p>
+              </div>
+            )
+          )}
+          {currentTab === 'audit' && <AuditView />}
+          {currentTab === 'settings' && <SettingsView />}
+        </Suspense>
       </AppShell>
     </>
   );

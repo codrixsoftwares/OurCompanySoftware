@@ -12,5 +12,21 @@ export default defineConfig({
         changeOrigin: true
       }
     }
+  },
+  build: {
+    // 1000 kB warning limit
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Vendor chunk for core React runtime
+          'react-vendor': ['react', 'react-dom'],
+          // Vendor chunk for UI icons
+          'lucide-icons': ['lucide-react'],
+          // Socket.io client
+          'socket-vendor': ['socket.io-client']
+        }
+      }
+    }
   }
 });
