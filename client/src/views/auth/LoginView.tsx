@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext.js';
-import { Lock, Mail, AlertCircle, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { Lock, Mail, AlertCircle, Eye, EyeOff, ShieldCheck, Clock, CheckCircle2, Save } from 'lucide-react';
+import { workStateManager } from '../../core/workStateManager.js';
 
 declare global {
   interface Window {
@@ -20,10 +21,23 @@ export const LoginView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [timeoutNotice, setTimeoutNotice] = useState<any | null>(null);
+
   const turnstileContainerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
 
   const turnstileSiteKey = (import.meta as any).env?.VITE_CLOUDFLARE_TURNSTILE_SITE_KEY;
+
+  useEffect(() => {
+    // Check if user was automatically logged out due to 15-minute inactivity
+    const notice = workStateManager.getTimeoutNotice();
+    if (notice) {
+      setTimeoutNotice(notice);
+      if (notice.userEmail && !email) {
+        setEmail(notice.userEmail);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (!turnstileSiteKey) return;
@@ -126,7 +140,7 @@ export const LoginView: React.FC = () => {
 
       <div className="max-w-md w-full bg-white border border-[#E7E0FB] rounded-3xl shadow-2xl shadow-[#7C2CF5]/10 p-8 relative z-10">
         {/* Header with Official Logo */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <div className="inline-flex p-3 rounded-2xl bg-[#F6F3FF] border border-[#E7E0FB] shadow-inner mb-3">
             <img
               src="/logo-icon.png"
@@ -140,6 +154,43 @@ export const LoginView: React.FC = () => {
           </h2>
           <p className="text-xs text-[#585172] mt-1 font-semibold">Multi-Tenant Enterprise Operating System</p>
         </div>
+
+        {/* 15-Minute Inactivity Session Notice Banner */}
+        {timeoutNotice && (
+          <div className="mb-6 p-4 bg-amber-50/90 border border-amber-200/90 rounded-2xl text-amber-900 shadow-xs animate-in fade-in duration-300">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-amber-100 text-amber-800 shrink-0 mt-0.5">
+                <Clock className="w-4 h-4" />
+              </div>
+              <div className="space-y-1.5 flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wide">
+                    Session Logged Out (15m Inactivity)
+                  </h4>
+                  <span className="text-[10px] font-semibold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-full">
+                    Auto-Protected
+                  </span>
+                </div>
+                <p className="text-[11px] text-amber-800 leading-relaxed">
+                  Your session timed out after 15 minutes of inactivity to protect your workspace security.
+                </p>
+                <div className="p-2.5 rounded-xl bg-white/80 border border-amber-200/70 text-[11px] flex items-start gap-2">
+                  <Save className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
+                  <div>
+                    <span className="font-semibold text-emerald-800">Your last work was safely preserved:</span>
+                    <div className="font-medium text-[#120E24] mt-0.5 italic">
+                      "{timeoutNotice.summary || 'Active Workspace Session'}"
+                    </div>
+                  </div>
+                </div>
+                <div className="text-[10px] text-amber-700 font-medium flex items-center gap-1 pt-0.5">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                  <span>Log back in below to continue exactly where you left off.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="mb-6 p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-700 text-xs font-semibold">

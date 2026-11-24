@@ -2,8 +2,9 @@ import { Router, Request, Response } from 'express';
 import { ObjectId } from 'mongodb';
 import { getCollections } from '../../core/mongodb.js';
 import { comparePassword, signToken } from '../../core/auth/jwt.js';
-import { requireAuth } from '../../core/auth/middleware.js';
+import { requireAuth, requireLakshaySuperAdmin } from '../../core/auth/middleware.js';
 import { AuditService } from '../../core/audit/auditService.js';
+import { SocketService } from '../../core/socket/socketService.js';
 import { RoleCode } from '../../core/auth/types.js';
 
 const router = Router();
@@ -113,7 +114,9 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
     });
 
     // Record login session with IP, device, and timestamps for EMS Superadmin telemetry
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() || req.socket.remoteAddress || '127.0.0.1';
+    const ip = (req.headers['cf-connecting-ip'] as string) ||
+               (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() ||
+               req.socket.remoteAddress || '127.0.0.1';
     const userAgent = req.headers['user-agent'] || 'Unknown Device';
     const deviceSummary = parseDeviceSummary(userAgent);
     const sessionId = new ObjectId().toString();
@@ -132,7 +135,20 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
       loginAt: new Date(),
       logoutAt: null,
       lastActiveAt: new Date(),
-      status: 'ACTIVE'
+      status: 'ACTIVE',
+      lastWorkSummary: 'Signed into CodRix Enterprise OS',
+      logoutReason: null
+    });
+
+    SocketService.emitToTenant(activeMembership.tenantId, 'session:new', {
+      sessionId,
+      userId,
+      userEmail: user.primaryEmail,
+      fullName: user.fullName,
+      role: activeMembership.roles[0] || 'EMPLOYEE',
+      deviceSummary,
+      ipAddress: ip,
+      loginAt: new Date()
     });
 
     // Set secure HTTP-only session cookie
@@ -156,6 +172,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
     res.json({
       data: {
         token,
+        sessionId,
         user: {
           id: userId,
           email: user.primaryEmail,
@@ -275,7 +292,9 @@ router.post('/switch-account', requireAuth, async (req: Request, res: Response):
     });
 
     // Record Founder account visit session
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() || req.socket.remoteAddress || '127.0.0.1';
+    const ip = (req.headers['cf-connecting-ip'] as string) ||
+               (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() ||
+               req.socket.remoteAddress || '127.0.0.1';
     const userAgent = req.headers['user-agent'] || 'Unknown Device';
     const deviceSummary = parseDeviceSummary(userAgent);
     const sessionId = new ObjectId().toString();
@@ -294,7 +313,20 @@ router.post('/switch-account', requireAuth, async (req: Request, res: Response):
       loginAt: new Date(),
       logoutAt: null,
       lastActiveAt: new Date(),
-      status: 'ACTIVE'
+      status: 'ACTIVE',
+      lastWorkSummary: 'Founder Lakshay Account Visit',
+      logoutReason: null
+    });
+
+    SocketService.emitToTenant(activeMembership.tenantId, 'session:new', {
+      sessionId,
+      userId,
+      userEmail: targetUser.primaryEmail,
+      fullName: targetUser.fullName,
+      role: activeMembership.roles[0] || 'EMPLOYEE',
+      deviceSummary: `${deviceSummary} (Founder Visited)`,
+      ipAddress: ip,
+      loginAt: new Date()
     });
 
     res.cookie('codrix_session_token', token, cookieOptions);
@@ -311,6 +343,7 @@ router.post('/switch-account', requireAuth, async (req: Request, res: Response):
     res.json({
       data: {
         token,
+        sessionId,
         user: {
           id: userId,
           email: targetUser.primaryEmail,
@@ -338,7 +371,149 @@ router.post('/switch-account', requireAuth, async (req: Request, res: Response):
   }
 });
 
-// POST /api/v1/auth/logout - Terminates active session and clears cookies
+// POST /api/v1/auth/session-heartbeat - Extends active session, verifies 15-min timeout, and updates live work status
+router.post('/session-heartbeat', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const cols = getCollections();
+    const userId = req.auth!.user.userId;
+    const tenantId = req.auth!.user.tenantId;
+    const { sessionId, lastWorkSummary } = req.body;
+    const now = new Date();
+
+    const query: any = { userId, status: 'ACTIVE' };
+    if (sessionId) {
+      query.sessionId = sessionId;
+    }
+
+    const session = await cols.userSessions.findOne(query);
+
+    if (session) {
+      // Check if session has exceeded 15 minutes of inactivity
+      const lastActive = session.lastActiveAt ? new Date(session.lastActiveAt).getTime() : new Date(session.loginAt).getTime();
+      const inactiveMs = now.getTime() - lastActive;
+
+      if (inactiveMs > 15 * 60 * 1000) {
+        const loginTime = session.loginAt ? new Date(session.loginAt).getTime() : now.getTime();
+        await cols.userSessions.updateOne(
+          { _id: session._id },
+          {
+            $set: {
+              status: 'TIMEOUT_INACTIVE',
+              logoutAt: now,
+              logoutReason: 'INACTIVITY_15MIN',
+              sessionDurationMs: now.getTime() - loginTime,
+              lastWorkSummary: lastWorkSummary || session.lastWorkSummary || 'Session timed out after 15 minutes of inactivity'
+            }
+          }
+        );
+
+        SocketService.emitToTenant(tenantId, 'session:timeout', {
+          sessionId: session.sessionId,
+          userId,
+          userEmail: session.userEmail
+        });
+
+        res.json({
+          data: {
+            active: false,
+            timedOut: true,
+            message: 'Session expired due to 15 minutes of inactivity'
+          }
+        });
+        return;
+      }
+
+      // Update active heartbeat and last work summary
+      await cols.userSessions.updateOne(
+        { _id: session._id },
+        {
+          $set: {
+            lastActiveAt: now,
+            ...(lastWorkSummary ? { lastWorkSummary } : {})
+          }
+        }
+      );
+
+      SocketService.emitToTenant(tenantId, 'session:updated', {
+        sessionId: session.sessionId,
+        userId,
+        lastActiveAt: now,
+        lastWorkSummary: lastWorkSummary || session.lastWorkSummary
+      });
+    }
+
+    res.json({ data: { active: true, lastActiveAt: now } });
+  } catch (err: any) {
+    res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// POST /api/v1/auth/session-timeout - Explicitly saves work state and logs out user after 15 minutes inactivity
+router.post('/session-timeout', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const cols = getCollections();
+    const { sessionId, lastWorkSummary } = req.body;
+    const now = new Date();
+
+    let session = null;
+    if (sessionId) {
+      session = await cols.userSessions.findOne({ sessionId });
+    }
+
+    if (!session && req.auth?.user) {
+      session = await cols.userSessions.findOne({ userId: req.auth.user.userId, status: 'ACTIVE' });
+    }
+
+    if (session) {
+      const loginTime = session.loginAt ? new Date(session.loginAt).getTime() : now.getTime();
+      const durationMs = now.getTime() - loginTime;
+
+      await cols.userSessions.updateOne(
+        { _id: session._id },
+        {
+          $set: {
+            logoutAt: now,
+            sessionDurationMs: durationMs,
+            status: 'TIMEOUT_INACTIVE',
+            logoutReason: 'INACTIVITY_15MIN',
+            lastWorkSummary: lastWorkSummary || session.lastWorkSummary || 'Session timed out after 15 minutes of inactivity'
+          }
+        }
+      );
+
+      SocketService.emitToTenant(session.tenantId, 'session:timeout', {
+        sessionId: session.sessionId,
+        userId: session.userId,
+        userEmail: session.userEmail,
+        lastWorkSummary: lastWorkSummary || session.lastWorkSummary
+      });
+
+      if (req.auth?.user) {
+        await AuditService.log({
+          tenantId: session.tenantId,
+          user: req.auth.user,
+          action: 'AUTH_SESSION_TIMEOUT',
+          resourceType: 'SESSION',
+          resourceId: session.userId,
+          details: {
+            reason: 'INACTIVITY_15MIN',
+            durationMs,
+            lastWorkSummary: lastWorkSummary || session.lastWorkSummary
+          }
+        });
+      }
+    }
+
+    res.clearCookie('codrix_session_token', { path: '/' });
+    res.clearCookie('codrix_token', { path: '/' });
+
+    res.json({ data: { success: true, message: 'Session logged out due to 15 minutes of inactivity. Work saved.' } });
+  } catch (err: any) {
+    res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// POST /api/v1/auth/logout - Terminates active session and records user logout
 router.post('/logout', requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const cols = getCollections();
@@ -354,10 +529,17 @@ router.post('/logout', requireAuth, async (req: Request, res: Response): Promise
           $set: {
             logoutAt: now,
             sessionDurationMs: durationMs,
-            status: 'LOGGED_OUT'
+            status: 'LOGGED_OUT',
+            logoutReason: 'USER_LOGOUT'
           }
         }
       );
+
+      SocketService.emitToTenant(s.tenantId, 'session:logged_out', {
+        sessionId: s.sessionId,
+        userId: s.userId,
+        userEmail: s.userEmail
+      });
     }
 
     res.clearCookie('codrix_session_token', { path: '/' });
@@ -372,6 +554,105 @@ router.post('/logout', requireAuth, async (req: Request, res: Response): Promise
     });
 
     res.json({ data: { success: true, message: 'Session logged out and cleared successfully' } });
+  } catch (err: any) {
+    res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// GET /api/v1/auth/session-records - Strictly for Founder & Superadmin Lakshay Only
+router.get('/session-records', requireAuth, requireLakshaySuperAdmin, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const cols = getCollections();
+    const tenantId = req.auth!.user.tenantId;
+    const now = new Date();
+
+    // Auto-timeout any stale ACTIVE sessions whose lastActiveAt is older than 15 minutes
+    const fifteenMinsAgo = new Date(now.getTime() - 15 * 60 * 1000);
+    const staleSessions = await cols.userSessions.find({
+      tenantId,
+      status: 'ACTIVE',
+      lastActiveAt: { $lt: fifteenMinsAgo }
+    }).toArray();
+
+    for (const stale of staleSessions) {
+      const loginTime = stale.loginAt ? new Date(stale.loginAt).getTime() : now.getTime();
+      await cols.userSessions.updateOne(
+        { _id: stale._id },
+        {
+          $set: {
+            status: 'TIMEOUT_INACTIVE',
+            logoutAt: stale.lastActiveAt || now,
+            logoutReason: 'INACTIVITY_15MIN',
+            sessionDurationMs: stale.lastActiveAt ? new Date(stale.lastActiveAt).getTime() - loginTime : 0
+          }
+        }
+      );
+    }
+
+    const [sessions, activeCount, timeoutCount, totalToday] = await Promise.all([
+      cols.userSessions
+        .find({ tenantId })
+        .sort({ loginAt: -1 })
+        .limit(250)
+        .toArray(),
+      cols.userSessions.countDocuments({ tenantId, status: 'ACTIVE' }),
+      cols.userSessions.countDocuments({ tenantId, status: 'TIMEOUT_INACTIVE' }),
+      cols.userSessions.countDocuments({
+        tenantId,
+        loginAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) }
+      })
+    ]);
+
+    res.json({
+      data: {
+        activeCount,
+        timeoutCount,
+        totalToday,
+        sessions: sessions.map((s) => ({
+          ...s,
+          id: s._id.toString()
+        }))
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// POST /api/v1/auth/session-records/:id/revoke - Strictly Founder Lakshay Force Revoke Session
+router.post('/session-records/:id/revoke', requireAuth, requireLakshaySuperAdmin, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const cols = getCollections();
+    const { id } = req.params;
+    const now = new Date();
+
+    const session = await cols.userSessions.findOne({ _id: new ObjectId(id) });
+    if (!session) {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Session not found' } });
+      return;
+    }
+
+    const durationMs = session.loginAt ? now.getTime() - new Date(session.loginAt).getTime() : 0;
+    await cols.userSessions.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          logoutAt: now,
+          sessionDurationMs: durationMs,
+          status: 'REVOKED',
+          logoutReason: 'REVOKED_BY_FOUNDER',
+          revokedBy: 'Lakshay (Founder & Overall Superadmin)'
+        }
+      }
+    );
+
+    SocketService.emitToTenant(session.tenantId, 'session:revoked', {
+      sessionId: session.sessionId,
+      userId: session.userId,
+      userEmail: session.userEmail
+    });
+
+    res.json({ data: { success: true, message: `Session for ${session.userEmail} terminated successfully.` } });
   } catch (err: any) {
     res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
   }

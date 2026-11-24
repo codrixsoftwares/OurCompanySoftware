@@ -3,6 +3,7 @@ import { apiRequest } from '../../api/client.js';
 import { getSocket } from '../../core/socket.js';
 import { useAuth } from '../../context/AuthContext.js';
 import { Lead } from '../../types.js';
+import { workStateManager } from '../../core/workStateManager.js';
 import {
   Target,
   Plus,
@@ -207,6 +208,44 @@ export const CrmView: React.FC = () => {
   const [proofLinks, setProofLinks] = useState('');
   const [researchPoints, setResearchPoints] = useState('');
 
+  // Restore any saved Lead & BDE Survey draft on mount
+  useEffect(() => {
+    const savedDraft = workStateManager.getLeadDraft();
+    if (savedDraft) {
+      if (savedDraft.companyName) setCompanyName(savedDraft.companyName);
+      if (savedDraft.contactName) setContactName(savedDraft.contactName);
+      if (savedDraft.email) setEmail(savedDraft.email);
+      if (savedDraft.phone) setPhone(savedDraft.phone);
+      if (savedDraft.serviceInterest) setServiceInterest(savedDraft.serviceInterest);
+      if (savedDraft.priority) setPriority(savedDraft.priority);
+      if (savedDraft.clientNeeds) setClientNeeds(savedDraft.clientNeeds);
+      if (savedDraft.codrixSolution) setCodrixSolution(savedDraft.codrixSolution);
+      if (savedDraft.proofLinks) setProofLinks(savedDraft.proofLinks);
+      if (savedDraft.researchPoints) setResearchPoints(savedDraft.researchPoints);
+      if (savedDraft.assignedBdeEmail) setAssignedBdeEmail(savedDraft.assignedBdeEmail);
+    }
+  }, []);
+
+  // Auto-sync Lead & BDE Survey draft changes to workStateManager
+  useEffect(() => {
+    if (companyName || clientNeeds || codrixSolution || contactName || researchPoints) {
+      workStateManager.saveLeadDraft({
+        companyName,
+        contactName,
+        email,
+        phone,
+        serviceInterest,
+        priority,
+        clientNeeds,
+        codrixSolution,
+        proofLinks,
+        researchPoints,
+        assignedBdeEmail,
+        updatedAt: new Date().toISOString()
+      });
+    }
+  }, [companyName, contactName, email, phone, serviceInterest, priority, clientNeeds, codrixSolution, proofLinks, researchPoints, assignedBdeEmail]);
+
   // Log Call State
   const [callOutcome, setCallOutcome] = useState('CONNECTED');
   const [callSummary, setCallSummary] = useState('');
@@ -355,6 +394,7 @@ export const CrmView: React.FC = () => {
     // 0ms instant UI close & render
     setLeads((prev) => [optimisticLead, ...prev]);
     setAddLeadOpen(false);
+    workStateManager.clearLeadDraft();
     setCompanyName('');
     setContactName('');
     setEmail('');
