@@ -13,13 +13,21 @@ export interface SavedWorkState {
     contactName: string;
     email: string;
     phone: string;
+    website?: string;
+    location?: string;
     serviceInterest: string;
     priority: string;
+    currentTechStack?: string;
     clientNeeds: string;
+    budgetRange?: string;
+    decisionMakerRole?: string;
     codrixSolution: string;
+    projectScale?: string;
+    pitchAngle?: string;
     proofLinks: string;
     researchPoints: string;
     assignedBdeEmail?: string;
+    formStage?: number;
     updatedAt: string;
   };
   mailboxDraft?: {

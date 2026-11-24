@@ -205,18 +205,26 @@ export interface EmailThread {
 
 export interface Lead {
   id: string;
+  leadCode?: string;
   companyName: string;
   contactName: string;
   email: string;
   phone?: string;
+  website?: string;
+  location?: string;
   stage: string;
   priority: string;
   source: string;
   serviceInterest?: string;
   needSummary?: string;
-  // BDE Survey & Research Fields:
+  // BDE Survey & Research Fields (Multi-Stage):
+  currentTechStack?: string;
   clientNeeds?: string;
+  budgetRange?: string;
+  decisionMakerRole?: string;
   codrixSolution?: string;
+  projectScale?: string;
+  pitchAngle?: string;
   proofLinks?: string;
   researchPoints?: string;
   // Quality Review & Flagging Workflow:

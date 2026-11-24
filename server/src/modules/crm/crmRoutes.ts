@@ -25,16 +25,18 @@ export function getReviewerTier(user: { email?: string; fullName?: string; roles
   // Diya Maheshwari (Operations & Execution)
   // Ishita Malhotra (Corporate Governance & Oversight)
   // Anshuman (Head of People & HR)
+  // Suryansh Thakur (Business Development & Operations Lead)
   const coreLeaderEmails = [
     'lakshay@codrix.co.in',
     'parth@codrix.co.in',
     'diya@codrix.co.in',
     'ishita@codrix.co.in',
-    'anshuman@codrix.co.in'
+    'anshuman@codrix.co.in',
+    'suryansh@codrix.co.in'
   ];
 
   const isCoreLeaderEmail = coreLeaderEmails.some((e) => email === e || email.startsWith(e.split('@')[0] + '@'));
-  const isCoreLeaderName = ['lakshay', 'parth', 'diya', 'ishita', 'anshuman'].some((n) => name.includes(n));
+  const isCoreLeaderName = ['lakshay', 'parth', 'diya', 'ishita', 'anshuman', 'suryansh'].some((n) => name.includes(n));
   const isCoreLeaderRole = roles.some((r) =>
     [
       RoleCode.COMPANY_ADMIN,
@@ -57,6 +59,40 @@ export function getReviewerTier(user: { email?: string; fullName?: string; roles
   }
 
   return { isReviewer: false, tier: null, isCoreTeam: false, isBdm: false };
+}
+
+// Helper to generate official Unique Lead ID in format LA{DDMMYY}{0001}
+// e.g. LA2411260001 (LA = Lakshay Founder Initials, 241126 = 24/11/2026, 0001 = 4-digit daily series)
+export async function generateLeadCode(tenantId: string): Promise<string> {
+  const cols = getCollections();
+  const now = new Date();
+  const dd = String(now.getDate()).padStart(2, '0');
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const yy = String(now.getFullYear()).slice(-2);
+  const dateKey = `${dd}${mm}${yy}`; // e.g. "241126"
+  const prefix = `LA${dateKey}`; // e.g. "LA241126"
+
+  const existingToday = await cols.leads
+    .find({
+      tenantId,
+      leadCode: { $regex: new RegExp(`^${prefix}`) }
+    })
+    .project({ leadCode: 1 })
+    .toArray();
+
+  let maxSeq = 0;
+  for (const l of existingToday) {
+    if (l.leadCode && typeof l.leadCode === 'string' && l.leadCode.startsWith(prefix)) {
+      const seqPart = l.leadCode.slice(prefix.length);
+      const parsed = parseInt(seqPart, 10);
+      if (!isNaN(parsed) && parsed > maxSeq) {
+        maxSeq = parsed;
+      }
+    }
+  }
+
+  const nextSeq = String(maxSeq + 1).padStart(4, '0');
+  return `${prefix}${nextSeq}`;
 }
 
 // GET /api/v1/crm/bdes (Fetch all active BDEs for lead assignment)
@@ -118,7 +154,7 @@ router.get('/bdes', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/v1/crm/leads (Strict BDE Isolation: BDEs only see their added/assigned leads)
+// GET /api/v1/crm/leads (Strict BDE Isolation: BDEs only see their added/assigned leads; Admin & Core Team see all)
 router.get('/leads', requireAuth, requirePermission('crm', 'leads', 'view_own'), async (req: Request, res: Response) => {
   try {
     const cols = getCollections();
@@ -128,13 +164,14 @@ router.get('/leads', requireAuth, requirePermission('crm', 'leads', 'view_own'),
     const userName = (req.auth!.user.fullName || '').trim();
 
     const { isCoreTeam, isBdm } = getReviewerTier(req.auth!.user);
+    const isFounder = userEmail === 'lakshay@codrix.co.in' || (req.auth?.user as any)?.isLakshay;
     const isTopAdmin = userRoles.some((r) =>
       [RoleCode.COMPANY_ADMIN, RoleCode.SUPER_ADMIN].includes(r)
-    ) || userEmail === 'lakshay@codrix.co.in';
+    ) || isFounder;
 
     const filter: any = { tenantId };
 
-    if (isTopAdmin || isCoreTeam || isBdm) {
+    if (isTopAdmin || isCoreTeam || isBdm || isFounder) {
       // Full visibility across all leads for Founder, Core Team & BDM
     } else {
       // Strict Data Isolation for BDEs:
@@ -157,18 +194,45 @@ router.get('/leads', requireAuth, requirePermission('crm', 'leads', 'view_own'),
       filter.$or = orConditions;
     }
 
-    const leads = await cols.leads.find(filter).sort({ updatedAt: -1 }).toArray();
+    const leads = await cols.leads.find(filter).sort({ createdAt: -1, updatedAt: -1 }).toArray();
     const leadIds = leads.map((l) => l._id.toString());
     const activities = await cols.callActivities.find({ leadId: { $in: leadIds } }).sort({ createdAt: -1 }).toArray();
 
-    const enriched = leads.map((l) => {
+    // Ensure all existing leads possess an official leadCode (e.g. LA2411260001)
+    const bulkUpdates: any[] = [];
+    const dateSeriesMap = new Map<string, number>();
+
+    const enriched = leads.map((l, idx) => {
       const lId = l._id.toString();
+      let code = l.leadCode;
+      if (!code) {
+        const d = l.createdAt ? new Date(l.createdAt) : new Date();
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yy = String(d.getFullYear()).slice(-2);
+        const dateKey = `${dd}${mm}${yy}`;
+        const currentCount = (dateSeriesMap.get(dateKey) || 0) + 1;
+        dateSeriesMap.set(dateKey, currentCount);
+        code = `LA${dateKey}${String(currentCount).padStart(4, '0')}`;
+        bulkUpdates.push({
+          updateOne: {
+            filter: { _id: l._id },
+            update: { $set: { leadCode: code } }
+          }
+        });
+      }
+
       return {
         ...l,
         id: lId,
+        leadCode: code,
         activities: activities.filter((a) => a.leadId === lId).map((a) => ({ ...a, id: a._id.toString() }))
       };
     });
+
+    if (bulkUpdates.length > 0) {
+      cols.leads.bulkWrite(bulkUpdates).catch(() => {});
+    }
 
     res.json({ data: enriched });
   } catch (err: any) {
@@ -184,12 +248,20 @@ router.post('/leads', requireAuth, requirePermission('crm', 'leads', 'create'), 
       contactName,
       email,
       phone,
+      website,
+      location,
       source,
       serviceInterest,
       needSummary,
       priority,
+      // Multi-Stage BDE Survey Intelligence Fields
+      currentTechStack,
       clientNeeds,
+      budgetRange,
+      decisionMakerRole,
       codrixSolution,
+      projectScale,
+      pitchAngle,
       proofLinks,
       researchPoints,
       assignedBdeEmail,
@@ -223,21 +295,32 @@ router.post('/leads', requireAuth, requirePermission('crm', 'leads', 'create'), 
     }
 
     const now = new Date();
+    // Generate official Unique Lead ID in format: LA{DDMMYY}{0001}
+    const leadCode = await generateLeadCode(tenantId);
+
     const leadDoc = {
       tenantId,
-      companyName,
-      contactName: contactName || 'Primary Contact',
-      email: email || '',
-      phone: phone || '',
-      source: source || 'WEBSITE',
+      leadCode,
+      companyName: (companyName || '').trim(),
+      contactName: (contactName || 'Primary Contact').trim(),
+      email: (email || '').trim(),
+      phone: (phone || '').trim(),
+      website: (website || '').trim(),
+      location: (location || '').trim(),
+      source: source || 'DIRECT_OUTREACH',
       serviceInterest: serviceInterest || 'Enterprise Workspace',
       needSummary: needSummary || clientNeeds || '',
       priority: priority || 'MEDIUM',
-      // BDE Survey & Research Intelligence
-      clientNeeds: clientNeeds || '',
-      codrixSolution: codrixSolution || '',
-      proofLinks: proofLinks || '',
-      researchPoints: researchPoints || '',
+      // Multi-Stage BDE Survey Intelligence
+      currentTechStack: (currentTechStack || '').trim(),
+      clientNeeds: (clientNeeds || '').trim(),
+      budgetRange: (budgetRange || '').trim(),
+      decisionMakerRole: (decisionMakerRole || '').trim(),
+      codrixSolution: (codrixSolution || '').trim(),
+      projectScale: (projectScale || '').trim(),
+      pitchAngle: (pitchAngle || '').trim(),
+      proofLinks: (proofLinks || '').trim(),
+      researchPoints: (researchPoints || '').trim(),
       // Quality Gatekeeping: Defaults to PENDING review
       flagStatus: 'PENDING',
       flagRemarks: '',
@@ -254,19 +337,19 @@ router.post('/leads', requireAuth, requirePermission('crm', 'leads', 'create'), 
       assignedBdeName: finalAssignedName || req.auth!.user.fullName,
       assignedBdeId: finalAssignedId || req.auth!.user.employeeId,
       ownerEmployeeId: finalAssignedId || req.auth!.user.employeeId,
-      stage: 'NEW',
+      stage: 'IDENTIFIED',
       stageHistory: [
         {
           fromStage: 'CREATED',
-          toStage: 'NEW',
-          notes: `Lead added to CRM by ${req.auth!.user.fullName} (${req.auth!.user.roles[0] || 'Team'})` + (finalAssignedName ? ` • Assigned to BDE: ${finalAssignedName}` : ''),
+          toStage: 'IDENTIFIED',
+          notes: `Lead [${leadCode}] added to CRM by ${req.auth!.user.fullName} (${req.auth!.user.roles[0] || 'Team'})` + (finalAssignedName ? ` • Assigned to BDE: ${finalAssignedName}` : ''),
           updatedBy: req.auth!.user.fullName,
           updatedByEmail: req.auth!.user.email,
           updatedByRole: req.auth!.user.roles[0] || 'Team',
           updatedAt: now
         }
       ],
-      lastStageNote: `Lead registered in pipeline. Awaiting survey intel verification.`,
+      lastStageNote: `Lead [${leadCode}] registered in pipeline. Awaiting survey intel verification.`,
       lastStageUpdateBy: req.auth!.user.fullName,
       lastStageUpdatedAt: now,
       createdAt: now,
@@ -281,7 +364,7 @@ router.post('/leads', requireAuth, requirePermission('crm', 'leads', 'create'), 
       action: 'LEAD_CREATE',
       resourceType: 'LEAD',
       resourceId: lead.id,
-      details: { companyName, contactName, assignedBdeEmail: finalAssignedEmail, hasSurveyIntelligence: Boolean(clientNeeds || proofLinks) }
+      details: { leadCode, companyName, contactName, assignedBdeEmail: finalAssignedEmail, hasSurveyIntelligence: Boolean(clientNeeds || proofLinks) }
     });
 
     SocketService.emitToTenant(tenantId, 'crm:lead_new', { lead });
@@ -291,6 +374,7 @@ router.post('/leads', requireAuth, requirePermission('crm', 'leads', 'create'), 
     res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
   }
 });
+
 
 // POST /api/v1/crm/leads/bulk-import (Excel / CSV bulk import with BDE assignment)
 router.post('/leads/bulk-import', requireAuth, async (req: Request, res: Response) => {
@@ -329,6 +413,13 @@ router.post('/leads/bulk-import', requireAuth, async (req: Request, res: Respons
 
     const validLeadsToInsert: any[] = [];
     const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yy = String(now.getFullYear()).slice(-2);
+    const dateKey = `${dd}${mm}${yy}`;
+    const prefix = `LA${dateKey}`;
+    const existingCount = await cols.leads.countDocuments({ tenantId, leadCode: { $regex: new RegExp(`^${prefix}`) } });
+    let seqCounter = existingCount + 1;
 
     for (const item of leads) {
       const companyName = (item.companyName || item['Company Name'] || '').trim();
@@ -342,6 +433,7 @@ router.post('/leads/bulk-import', requireAuth, async (req: Request, res: Respons
 
       const leadDoc = {
         tenantId,
+        leadCode: `${prefix}${String(seqCounter++).padStart(4, '0')}`,
         companyName,
         contactName: contactName || 'Primary Contact',
         email: (item.email || item['Contact Email'] || item['Email'] || '').trim(),

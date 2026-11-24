@@ -40,7 +40,11 @@ import {
   Upload,
   Download,
   Table,
-  UserCheck
+  UserCheck,
+  Tag,
+  ArrowLeft,
+  Send,
+  Layers
 } from 'lucide-react';
 
 // Robust CSV/TSV Parser function supporting quoted cells, multi-line values, and Excel paste
@@ -196,15 +200,23 @@ export const CrmView: React.FC = () => {
   const [stageNotesInput, setStageNotesInput] = useState('');
   const [isSubmittingStage, setIsSubmittingStage] = useState(false);
 
-  // New Lead Survey & Research State
+  // New Lead Survey & Research State (Multi-Stage)
+  const [formStage, setFormStage] = useState<number>(1);
   const [companyName, setCompanyName] = useState('');
   const [contactName, setContactName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [serviceInterest, setServiceInterest] = useState('');
+  const [website, setWebsite] = useState('');
+  const [location, setLocation] = useState('');
+  const [serviceInterest, setServiceInterest] = useState('Enterprise Cloud Software');
   const [priority, setPriority] = useState('MEDIUM');
+  const [currentTechStack, setCurrentTechStack] = useState('');
   const [clientNeeds, setClientNeeds] = useState('');
+  const [budgetRange, setBudgetRange] = useState('');
+  const [decisionMakerRole, setDecisionMakerRole] = useState('');
   const [codrixSolution, setCodrixSolution] = useState('');
+  const [projectScale, setProjectScale] = useState('');
+  const [pitchAngle, setPitchAngle] = useState('');
   const [proofLinks, setProofLinks] = useState('');
   const [researchPoints, setResearchPoints] = useState('');
 
@@ -216,35 +228,71 @@ export const CrmView: React.FC = () => {
       if (savedDraft.contactName) setContactName(savedDraft.contactName);
       if (savedDraft.email) setEmail(savedDraft.email);
       if (savedDraft.phone) setPhone(savedDraft.phone);
+      if (savedDraft.website) setWebsite(savedDraft.website);
+      if (savedDraft.location) setLocation(savedDraft.location);
       if (savedDraft.serviceInterest) setServiceInterest(savedDraft.serviceInterest);
       if (savedDraft.priority) setPriority(savedDraft.priority);
+      if (savedDraft.currentTechStack) setCurrentTechStack(savedDraft.currentTechStack);
       if (savedDraft.clientNeeds) setClientNeeds(savedDraft.clientNeeds);
+      if (savedDraft.budgetRange) setBudgetRange(savedDraft.budgetRange);
+      if (savedDraft.decisionMakerRole) setDecisionMakerRole(savedDraft.decisionMakerRole);
       if (savedDraft.codrixSolution) setCodrixSolution(savedDraft.codrixSolution);
+      if (savedDraft.projectScale) setProjectScale(savedDraft.projectScale);
+      if (savedDraft.pitchAngle) setPitchAngle(savedDraft.pitchAngle);
       if (savedDraft.proofLinks) setProofLinks(savedDraft.proofLinks);
       if (savedDraft.researchPoints) setResearchPoints(savedDraft.researchPoints);
       if (savedDraft.assignedBdeEmail) setAssignedBdeEmail(savedDraft.assignedBdeEmail);
+      if (savedDraft.formStage) setFormStage(savedDraft.formStage);
     }
   }, []);
 
   // Auto-sync Lead & BDE Survey draft changes to workStateManager
   useEffect(() => {
-    if (companyName || clientNeeds || codrixSolution || contactName || researchPoints) {
+    if (companyName || clientNeeds || codrixSolution || contactName || researchPoints || website) {
       workStateManager.saveLeadDraft({
         companyName,
         contactName,
         email,
         phone,
+        website,
+        location,
         serviceInterest,
         priority,
+        currentTechStack,
         clientNeeds,
+        budgetRange,
+        decisionMakerRole,
         codrixSolution,
+        projectScale,
+        pitchAngle,
         proofLinks,
         researchPoints,
         assignedBdeEmail,
+        formStage,
         updatedAt: new Date().toISOString()
       });
     }
-  }, [companyName, contactName, email, phone, serviceInterest, priority, clientNeeds, codrixSolution, proofLinks, researchPoints, assignedBdeEmail]);
+  }, [
+    companyName,
+    contactName,
+    email,
+    phone,
+    website,
+    location,
+    serviceInterest,
+    priority,
+    currentTechStack,
+    clientNeeds,
+    budgetRange,
+    decisionMakerRole,
+    codrixSolution,
+    projectScale,
+    pitchAngle,
+    proofLinks,
+    researchPoints,
+    assignedBdeEmail,
+    formStage
+  ]);
 
   // Log Call State
   const [callOutcome, setCallOutcome] = useState('CONNECTED');
@@ -370,39 +418,62 @@ export const CrmView: React.FC = () => {
   const handleCreateLead = async (e: React.FormEvent) => {
     e.preventDefault();
     const tempId = `temp_${Date.now()}`;
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yy = String(now.getFullYear()).slice(-2);
+    const optimisticLeadCode = `LA${dd}${mm}${yy}....`;
+
     const optimisticLead: any = {
       id: tempId,
       _id: tempId,
+      leadCode: optimisticLeadCode,
       companyName,
       contactName,
       email,
       phone,
+      website,
+      location,
       serviceInterest,
       priority,
+      currentTechStack,
       clientNeeds,
+      budgetRange,
+      decisionMakerRole,
       codrixSolution,
+      projectScale,
+      pitchAngle,
       proofLinks,
       researchPoints,
       assignedBdeEmail,
       assignedBdeName,
       assignedBdeId,
       stage: 'IDENTIFIED',
+      flagStatus: 'PENDING',
       score: 50,
-      createdAt: new Date().toISOString()
+      createdAt: now.toISOString()
     };
 
     // 0ms instant UI close & render
     setLeads((prev) => [optimisticLead, ...prev]);
     setAddLeadOpen(false);
+    setFormStage(1);
     workStateManager.clearLeadDraft();
     setCompanyName('');
     setContactName('');
     setEmail('');
     setPhone('');
-    setServiceInterest('');
+    setWebsite('');
+    setLocation('');
+    setServiceInterest('Enterprise Cloud Software');
     setPriority('MEDIUM');
+    setCurrentTechStack('');
     setClientNeeds('');
+    setBudgetRange('');
+    setDecisionMakerRole('');
     setCodrixSolution('');
+    setProjectScale('');
+    setPitchAngle('');
     setProofLinks('');
     setResearchPoints('');
 
@@ -414,10 +485,17 @@ export const CrmView: React.FC = () => {
           contactName: optimisticLead.contactName,
           email: optimisticLead.email,
           phone: optimisticLead.phone,
+          website: optimisticLead.website,
+          location: optimisticLead.location,
           serviceInterest: optimisticLead.serviceInterest,
           priority: optimisticLead.priority,
+          currentTechStack: optimisticLead.currentTechStack,
           clientNeeds: optimisticLead.clientNeeds,
+          budgetRange: optimisticLead.budgetRange,
+          decisionMakerRole: optimisticLead.decisionMakerRole,
           codrixSolution: optimisticLead.codrixSolution,
+          projectScale: optimisticLead.projectScale,
+          pitchAngle: optimisticLead.pitchAngle,
           proofLinks: optimisticLead.proofLinks,
           researchPoints: optimisticLead.researchPoints,
           assignedBdeEmail: optimisticLead.assignedBdeEmail,
@@ -890,13 +968,44 @@ export const CrmView: React.FC = () => {
                         </td>
                       )}
                       <td className="py-3.5 px-4">
-                        <div className="font-bold text-[#120E24] text-[13px]">{lead.companyName}</div>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className="px-2 py-0.5 rounded-md bg-[#F0ECFC] border border-[#DDD0FE] text-[#7C2CF5] font-mono font-bold text-[10px] tracking-wide inline-flex items-center gap-1">
+                            <Tag className="w-2.5 h-2.5" />
+                            <span>{lead.leadCode || lead.id?.slice(-8).toUpperCase()}</span>
+                          </span>
+                          {lead.priority && (
+                            <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded ${
+                              lead.priority === 'HIGH' ? 'bg-rose-50 text-rose-600 border border-rose-200' :
+                              lead.priority === 'MEDIUM' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                              'bg-slate-50 text-slate-500 border border-slate-200'
+                            }`}>
+                              {lead.priority}
+                            </span>
+                          )}
+                        </div>
+                        <div className="font-bold text-[#120E24] text-[13px] flex items-center gap-1.5">
+                          <span>{lead.companyName}</span>
+                          {lead.website && (
+                            <a
+                              href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[#585172] hover:text-[#7C2CF5] transition"
+                              title={lead.website}
+                            >
+                              <ExternalLink className="w-3 h-3 inline" />
+                            </a>
+                          )}
+                        </div>
                         <div className="text-[11px] text-[#585172] flex items-center gap-1 mt-0.5">
                           <span>{lead.contactName}</span>
                           <span>&bull;</span>
                           <span className="text-[#7C2CF5] font-medium">{lead.email}</span>
                         </div>
-                        {lead.phone && <div className="text-[10px] text-slate-400 mt-0.5">{lead.phone}</div>}
+                        <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-2">
+                          {lead.phone && <span>{lead.phone}</span>}
+                          {lead.location && <span>&bull; {lead.location}</span>}
+                        </div>
                       </td>
 
                       {/* Flag Column */}
@@ -1134,8 +1243,13 @@ export const CrmView: React.FC = () => {
                     </span>
                   )}
                 </div>
-                <h3 className="font-bold text-lg text-[#120E24] mt-1">{inspectingLead.companyName}</h3>
-                <p className="text-xs text-[#585172]">
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="px-2 py-0.5 rounded-md bg-[#F0ECFC] border border-[#DDD0FE] text-[#7C2CF5] font-mono font-bold text-xs">
+                    {inspectingLead.leadCode || inspectingLead.id?.slice(-8).toUpperCase()}
+                  </span>
+                  <h3 className="font-bold text-lg text-[#120E24]">{inspectingLead.companyName}</h3>
+                </div>
+                <p className="text-xs text-[#585172] mt-0.5">
                   Contact: <strong className="text-[#120E24]">{inspectingLead.contactName}</strong> &bull; {inspectingLead.email}
                   {inspectingLead.phone && ` &bull; ${inspectingLead.phone}`}
                 </p>
@@ -1685,221 +1799,582 @@ export const CrmView: React.FC = () => {
         </div>
       )}
 
-      {/* Add Lead & Survey Intelligence Modal */}
+      {/* Add Lead & Survey Intelligence Modal (Multi-Stage BDE Wizard) */}
       {addLeadOpen && (
         <div className="fixed inset-0 bg-[#120E24]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-[#E7E0FB] max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-[#E7E0FB] mb-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-[#E7E0FB] max-h-[92vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-[#E7E0FB] mb-3">
               <div>
-                <div className="flex items-center gap-1.5">
-                  <h3 className="font-bold text-[#120E24] text-base">Add New Lead & Survey Intelligence</h3>
-                  <span className="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-                    Awaits Review Flag
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold text-[#120E24] text-base">Add New Lead & Survey Intelligence</h3>
+                  <span className="bg-[#EDE4FF] text-[#7C2CF5] border border-[#DDD0FE] text-[10px] font-black px-2 py-0.5 rounded-full">
+                    Stage {formStage} of 4
                   </span>
                 </div>
-                <p className="text-xs text-[#585172]">
-                  Fill out prospect data, pain point analysis, proof links, and solution approach for Core Team / BDM review
+                <p className="text-xs text-[#585172] mt-0.5">
+                  Structured BDE workflow: capture prospect details, survey pain points, CodRix solutions, and research proofs
                 </p>
               </div>
-              <button onClick={() => setAddLeadOpen(false)} className="text-[#585172] hover:text-[#120E24]">
+              <button
+                onClick={() => {
+                  setAddLeadOpen(false);
+                  setFormStage(1);
+                }}
+                className="text-[#585172] hover:text-[#120E24] p-1 rounded-xl transition"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
+            {/* Stage Progress Bar */}
+            <div className="w-full bg-[#E7E0FB] h-1.5 rounded-full overflow-hidden mb-4">
+              <div
+                className="bg-[#7C2CF5] h-full transition-all duration-300 rounded-full"
+                style={{ width: `${(formStage / 4) * 100}%` }}
+              ></div>
+            </div>
+
+            {/* Stage Step Indicators */}
+            <div className="grid grid-cols-4 gap-2 mb-4 pb-2 border-b border-[#E7E0FB]/70 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setFormStage(1)}
+                className={`flex items-center gap-1.5 font-bold p-1.5 rounded-xl transition text-left ${
+                  formStage === 1
+                    ? 'bg-[#F0ECFC] text-[#7C2CF5]'
+                    : formStage > 1
+                    ? 'text-emerald-700 hover:bg-[#F7F5FE]'
+                    : 'text-slate-400'
+                }`}
+              >
+                <div
+                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0 ${
+                    formStage > 1 ? 'bg-emerald-100 text-emerald-800' : formStage === 1 ? 'bg-[#7C2CF5] text-white' : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {formStage > 1 ? <Check className="w-3 h-3" /> : '1'}
+                </div>
+                <span className="truncate">1. Profile</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (companyName.trim() && contactName.trim() && email.trim()) setFormStage(2);
+                }}
+                className={`flex items-center gap-1.5 font-bold p-1.5 rounded-xl transition text-left ${
+                  formStage === 2
+                    ? 'bg-[#F0ECFC] text-[#7C2CF5]'
+                    : formStage > 2
+                    ? 'text-emerald-700 hover:bg-[#F7F5FE]'
+                    : 'text-slate-400'
+                }`}
+              >
+                <div
+                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0 ${
+                    formStage > 2 ? 'bg-emerald-100 text-emerald-800' : formStage === 2 ? 'bg-[#7C2CF5] text-white' : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {formStage > 2 ? <Check className="w-3 h-3" /> : '2'}
+                </div>
+                <span className="truncate">2. Survey</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (clientNeeds.trim()) setFormStage(3);
+                }}
+                className={`flex items-center gap-1.5 font-bold p-1.5 rounded-xl transition text-left ${
+                  formStage === 3
+                    ? 'bg-[#F0ECFC] text-[#7C2CF5]'
+                    : formStage > 3
+                    ? 'text-emerald-700 hover:bg-[#F7F5FE]'
+                    : 'text-slate-400'
+                }`}
+              >
+                <div
+                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0 ${
+                    formStage > 3 ? 'bg-emerald-100 text-emerald-800' : formStage === 3 ? 'bg-[#7C2CF5] text-white' : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {formStage > 3 ? <Check className="w-3 h-3" /> : '3'}
+                </div>
+                <span className="truncate">3. Solution</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (codrixSolution.trim()) setFormStage(4);
+                }}
+                className={`flex items-center gap-1.5 font-bold p-1.5 rounded-xl transition text-left ${
+                  formStage === 4 ? 'bg-[#F0ECFC] text-[#7C2CF5]' : 'text-slate-400'
+                }`}
+              >
+                <div
+                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0 ${
+                    formStage === 4 ? 'bg-[#7C2CF5] text-white' : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  4
+                </div>
+                <span className="truncate">4. Preview</span>
+              </button>
+            </div>
+
             <form onSubmit={handleCreateLead} className="space-y-4 text-xs">
-              {/* Section 1: Basic Prospect Info */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-[#120E24] mb-1">Company Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                    placeholder="e.g. Apex Global Systems"
-                  />
-                </div>
+              {/* STAGE 1: Prospect Profile & Basic Details */}
+              {formStage === 1 && (
+                <div className="space-y-3 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#7C2CF5] uppercase tracking-wider">
+                    <Building className="w-4 h-4" />
+                    <span>Stage 1: Prospect Profile & Contact Information</span>
+                  </div>
 
-                <div>
-                  <label className="block font-bold text-[#120E24] mb-1">Contact Person Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={contactName}
-                    onChange={(e) => setContactName(e.target.value)}
-                    className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                    placeholder="e.g. Sunil Roy (CTO / Director)"
-                  />
-                </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-[#120E24] mb-1">Company Name *</label>
+                      <input
+                        type="text"
+                        required
+                        value={companyName}
+                        onChange={(e) => setCompanyName(e.target.value)}
+                        className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
+                        placeholder="e.g. Apex Global Logistics"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block font-bold text-[#120E24] mb-1">Email Address *</label>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                    placeholder="sunil@apex.com"
-                  />
-                </div>
+                    <div>
+                      <label className="block font-bold text-[#120E24] mb-1">Contact Person Name *</label>
+                      <input
+                        type="text"
+                        required
+                        value={contactName}
+                        onChange={(e) => setContactName(e.target.value)}
+                        className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
+                        placeholder="e.g. Sunil Roy (Director / Founder)"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block font-bold text-[#120E24] mb-1">Phone Number</label>
-                  <input
-                    type="text"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                    placeholder="+91 9988776655"
-                  />
-                </div>
+                    <div>
+                      <label className="block font-bold text-[#120E24] mb-1">Work Email Address *</label>
+                      <input
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
+                        placeholder="sunil@apex.com"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block font-bold text-[#120E24] mb-1">Service Interest</label>
-                  <input
-                    type="text"
-                    value={serviceInterest}
-                    onChange={(e) => setServiceInterest(e.target.value)}
-                    className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                    placeholder="e.g. Enterprise Cloud ERP, Web Application, AI"
-                  />
-                </div>
+                    <div>
+                      <label className="block font-bold text-[#120E24] mb-1">Phone / WhatsApp Number</label>
+                      <input
+                        type="text"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
+                        placeholder="+91 9988776655"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block font-bold text-[#120E24] mb-1">Priority</label>
-                  <select
-                    value={priority}
-                    onChange={(e) => setPriority(e.target.value)}
-                    className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                  >
-                    <option value="HIGH">HIGH (Urgent need / Budget ready)</option>
-                    <option value="MEDIUM">MEDIUM (Standard evaluation)</option>
-                    <option value="LOW">LOW (Early exploration)</option>
-                  </select>
-                </div>
+                    <div>
+                      <label className="block font-bold text-[#120E24] mb-1">Company Website / Domain</label>
+                      <input
+                        type="text"
+                        value={website}
+                        onChange={(e) => setWebsite(e.target.value)}
+                        className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
+                        placeholder="https://apexlogistics.com"
+                      />
+                    </div>
 
-                {/* BDE Assignment Field */}
-                <div className="col-span-1 sm:col-span-2">
-                  <label className="block font-bold text-[#120E24] mb-1 flex items-center justify-between">
-                    <span className="flex items-center gap-1.5">
-                      <UserCheck className="w-3.5 h-3.5 text-[#7C2CF5]" />
-                      <span>Assign To BDE *</span>
-                    </span>
-                    <span className="text-[10px] text-[#7C2CF5] font-semibold">
-                      {isReviewer || isLakshay ? 'Assign this lead to a specific BDE' : 'Assigned to your pipeline'}
-                    </span>
-                  </label>
-                  {isReviewer || isLakshay ? (
-                    <select
-                      value={assignedBdeEmail}
-                      onChange={(e) => {
-                        const selectedEmail = e.target.value;
-                        setAssignedBdeEmail(selectedEmail);
-                        const bde = bdeList.find((b) => b.email === selectedEmail);
-                        if (bde) {
-                          setAssignedBdeName(bde.fullName);
-                          setAssignedBdeId(bde.id);
-                        }
-                      }}
-                      className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none font-semibold text-xs"
+                    <div>
+                      <label className="block font-bold text-[#120E24] mb-1">Location (City, Country)</label>
+                      <input
+                        type="text"
+                        value={location}
+                        onChange={(e) => setLocation(e.target.value)}
+                        className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
+                        placeholder="e.g. Bangalore, India"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-[#120E24] mb-1">Service Offering of Interest</label>
+                      <input
+                        type="text"
+                        value={serviceInterest}
+                        onChange={(e) => setServiceInterest(e.target.value)}
+                        className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
+                        placeholder="e.g. Enterprise Cloud ERP, Custom SaaS, AI Stack"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-[#120E24] mb-1">Lead Priority</label>
+                      <select
+                        value={priority}
+                        onChange={(e) => setPriority(e.target.value)}
+                        className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none font-semibold"
+                      >
+                        <option value="HIGH">HIGH (Urgent requirement / Active Budget)</option>
+                        <option value="MEDIUM">MEDIUM (Standard discovery & pitch)</option>
+                        <option value="LOW">LOW (Early exploratory research)</option>
+                      </select>
+                    </div>
+
+                    {/* BDE Assignment Field */}
+                    <div className="col-span-1 sm:col-span-2">
+                      <label className="block font-bold text-[#120E24] mb-1 flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <UserCheck className="w-3.5 h-3.5 text-[#7C2CF5]" />
+                          <span>Assigned Business Development Executive (BDE) *</span>
+                        </span>
+                        <span className="text-[10px] text-[#7C2CF5] font-semibold">
+                          {isReviewer || isLakshay ? 'Assign lead to target BDE pipeline' : 'Assigned to your profile'}
+                        </span>
+                      </label>
+                      {isReviewer || isLakshay ? (
+                        <select
+                          value={assignedBdeEmail}
+                          onChange={(e) => {
+                            const selectedEmail = e.target.value;
+                            setAssignedBdeEmail(selectedEmail);
+                            const bde = bdeList.find((b) => b.email === selectedEmail);
+                            if (bde) {
+                              setAssignedBdeName(bde.fullName);
+                              setAssignedBdeId(bde.id);
+                            }
+                          }}
+                          className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none font-semibold text-xs"
+                        >
+                          {bdeList.map((b) => (
+                            <option key={b.email} value={b.email}>
+                              {b.fullName} &bull; {b.email} ({b.jobTitle || 'BDE'})
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="p-2.5 bg-[#F7F5FE] border border-[#E7E0FB] rounded-xl flex items-center justify-between">
+                          <span className="font-bold text-[#120E24]">{session?.user?.fullName || 'Current User'} ({session?.user?.email})</span>
+                          <span className="text-[10px] text-[#7C2CF5] font-semibold bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+                            Self-Assigned
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Stage 1 Actions */}
+                  <div className="pt-3 border-t border-[#E7E0FB] flex justify-between items-center">
+                    <button
+                      type="button"
+                      onClick={() => setAddLeadOpen(false)}
+                      className="px-4 py-2 border border-[#E7E0FB] rounded-xl text-[#585172] hover:bg-[#F7F5FE] font-bold transition cursor-pointer"
                     >
-                      {bdeList.map((b) => (
-                        <option key={b.email} value={b.email}>
-                          {b.fullName} &bull; {b.email} ({b.jobTitle || 'BDE'})
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className="p-2.5 bg-[#F7F5FE] border border-[#E7E0FB] rounded-xl flex items-center justify-between">
-                      <span className="font-bold text-[#120E24]">{session?.user?.fullName || 'Current User'} ({session?.user?.email})</span>
-                      <span className="text-[10px] text-[#7C2CF5] font-semibold bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
-                        Self-Assigned
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!companyName.trim() || !contactName.trim() || !email.trim()) {
+                          alert('Please enter Company Name, Contact Name, and Work Email to continue.');
+                          return;
+                        }
+                        setFormStage(2);
+                      }}
+                      className="px-5 py-2 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white rounded-xl font-bold shadow-md shadow-[#7C2CF5]/25 transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>Next: Client Survey & Needs</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* STAGE 2: Client Situation & Survey (Needs Analysis) */}
+              {formStage === 2 && (
+                <div className="space-y-3 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#7C2CF5] uppercase tracking-wider">
+                    <Target className="w-4 h-4" />
+                    <span>Stage 2: Client Situation & Pain Point Survey</span>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-[#120E24] mb-1">
+                      Current System / Tech Stack in Use
+                    </label>
+                    <input
+                      type="text"
+                      value={currentTechStack}
+                      onChange={(e) => setCurrentTechStack(e.target.value)}
+                      className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
+                      placeholder="e.g. Legacy WordPress site, Manual Excel spreadsheets, Outdated Laravel PHP app, No software"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-[#120E24] mb-1">
+                      What They Need (Client Pain Points & Requirement Survey) *
+                    </label>
+                    <textarea
+                      required
+                      rows={3}
+                      value={clientNeeds}
+                      onChange={(e) => setClientNeeds(e.target.value)}
+                      className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none leading-relaxed"
+                      placeholder="Describe what is failing in their current operation: (e.g. Current manual tracking causes 15% delayed shipments, no mobile access for field agents, customer complaints on booking)..."
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-[#120E24] mb-1">
+                        Estimated Budget Bracket
+                      </label>
+                      <select
+                        value={budgetRange}
+                        onChange={(e) => setBudgetRange(e.target.value)}
+                        className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none font-medium"
+                      >
+                        <option value="">Select Estimated Budget...</option>
+                        <option value="₹50k - ₹2L ($1,000 - $2,500)">₹50k - ₹2L ($1,000 - $2,500) - Starter</option>
+                        <option value="₹2L - ₹5L ($2,500 - $6,000)">₹2L - ₹5L ($2,500 - $6,000) - Growth</option>
+                        <option value="₹5L - ₹15L ($6,000 - $18,000)">₹5L - ₹15L ($6,000 - $18,000) - Custom Suite</option>
+                        <option value="₹15L+ ($20,000+) - Enterprise">₹15L+ ($20,000+) - Full Enterprise Cloud</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-[#120E24] mb-1">
+                        Decision Maker Role & Authority
+                      </label>
+                      <input
+                        type="text"
+                        value={decisionMakerRole}
+                        onChange={(e) => setDecisionMakerRole(e.target.value)}
+                        className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
+                        placeholder="e.g. Managing Director (Sole decision maker) / CTO"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Stage 2 Actions */}
+                  <div className="pt-3 border-t border-[#E7E0FB] flex justify-between items-center">
+                    <button
+                      type="button"
+                      onClick={() => setFormStage(1)}
+                      className="px-4 py-2 border border-[#E7E0FB] rounded-xl text-[#585172] hover:bg-[#F7F5FE] font-bold transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      <span>Back: Profile</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!clientNeeds.trim()) {
+                          alert('Please enter what the client needs / their core pain points to proceed.');
+                          return;
+                        }
+                        setFormStage(3);
+                      }}
+                      className="px-5 py-2 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white rounded-xl font-bold shadow-md shadow-[#7C2CF5]/25 transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>Next: CodRix Solution</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* STAGE 3: Proposed CodRix Solution & Pitch Strategy */}
+              {formStage === 3 && (
+                <div className="space-y-3 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#7C2CF5] uppercase tracking-wider">
+                    <Sparkles className="w-4 h-4" />
+                    <span>Stage 3: Proposed CodRix Solution & Pitch Strategy</span>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-[#120E24] mb-1">
+                      How CodRix Can Help (Proposed Solution & Value Pitch) *
+                    </label>
+                    <textarea
+                      required
+                      rows={3}
+                      value={codrixSolution}
+                      onChange={(e) => setCodrixSolution(e.target.value)}
+                      className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none leading-relaxed"
+                      placeholder="Outline the technical approach & features: (e.g. Build modern React/Next.js dashboard with Socket.IO real-time tracking, MongoDB database, customer tracking portal, and automated invoice dispatches)..."
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-[#120E24] mb-1">
+                        Proposed Project Scale / Scope
+                      </label>
+                      <select
+                        value={projectScale}
+                        onChange={(e) => setProjectScale(e.target.value)}
+                        className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none font-medium"
+                      >
+                        <option value="">Select Delivery Scope...</option>
+                        <option value="MVP Sprint (2-3 Weeks)">MVP Sprint (2-3 Weeks)</option>
+                        <option value="Production Application (4-8 Weeks)">Production Application (4-8 Weeks)</option>
+                        <option value="Comprehensive Enterprise OS (8-16 Weeks)">Comprehensive Enterprise OS (8-16 Weeks)</option>
+                        <option value="Continuous Dedicated Retainer">Continuous Dedicated Retainer</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-[#120E24] mb-1">
+                        Key Value Pitch / Differentiator
+                      </label>
+                      <input
+                        type="text"
+                        value={pitchAngle}
+                        onChange={(e) => setPitchAngle(e.target.value)}
+                        className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
+                        placeholder="e.g. 3x faster delivery, modern real-time architecture, founder oversight"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Stage 3 Actions */}
+                  <div className="pt-3 border-t border-[#E7E0FB] flex justify-between items-center">
+                    <button
+                      type="button"
+                      onClick={() => setFormStage(2)}
+                      className="px-4 py-2 border border-[#E7E0FB] rounded-xl text-[#585172] hover:bg-[#F7F5FE] font-bold transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      <span>Back: Survey</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!codrixSolution.trim()) {
+                          alert('Please enter how CodRix can help / your proposed solution to proceed.');
+                          return;
+                        }
+                        setFormStage(4);
+                      }}
+                      className="px-5 py-2 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white rounded-xl font-bold shadow-md shadow-[#7C2CF5]/25 transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>Next: Proofs & Preview</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* STAGE 4: Research Proofs, Preview & Final Submission */}
+              {formStage === 4 && (
+                <div className="space-y-3.5 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#7C2CF5] uppercase tracking-wider">
+                    <Layers className="w-4 h-4" />
+                    <span>Stage 4: Proof Links, Market Signals & Submission Preview</span>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-[#120E24] mb-1">
+                      Proof & Reference Links (Website, LinkedIn, References, Survey URLs)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={proofLinks}
+                      onChange={(e) => setProofLinks(e.target.value)}
+                      className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
+                      placeholder="e.g. https://apexlogistics.com, https://linkedin.com/in/sunilroy, https://clutch.co/profile/..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-[#120E24] mb-1">
+                      Survey & Research Notes (Market observations, signals, triggers)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={researchPoints}
+                      onChange={(e) => setResearchPoints(e.target.value)}
+                      className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
+                      placeholder="e.g. Raised $500k seed funding in Q3, expanding fleet to 4 new states, posted 2 job openings for IT leads..."
+                    />
+                  </div>
+
+                  {/* Staged Data Summary Card with Generated Lead ID Preview */}
+                  <div className="p-3.5 bg-[#F6F3FF] border border-[#DDD0FE] rounded-2xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-[#7C2CF5]" />
+                        <span className="font-bold text-[#120E24] text-xs">Official Lead ID Series Preview:</span>
+                      </div>
+                      <span className="px-2.5 py-0.5 rounded-lg bg-white border border-[#DDD0FE] font-mono font-black text-xs text-[#7C2CF5]">
+                        {(() => {
+                          const d = new Date();
+                          const dd = String(d.getDate()).padStart(2, '0');
+                          const mm = String(d.getMonth() + 1).padStart(2, '0');
+                          const yy = String(d.getFullYear()).slice(-2);
+                          return `LA${dd}${mm}${yy}xxxx`;
+                        })()}
                       </span>
                     </div>
-                  )}
-                </div>
-              </div>
+                    <div className="text-[10px] text-[#585172] leading-tight">
+                      <strong>ID Format:</strong> <span className="font-semibold text-[#7C2CF5]">LA</span> (Founder Lakshay) +{' '}
+                      <span className="font-semibold text-[#7C2CF5]">{(() => {
+                        const d = new Date();
+                        const dd = String(d.getDate()).padStart(2, '0');
+                        const mm = String(d.getMonth() + 1).padStart(2, '0');
+                        const yy = String(d.getFullYear()).slice(-2);
+                        return `${dd}${mm}${yy}`;
+                      })()}</span> (Date) + <span className="font-semibold text-[#7C2CF5]">0001</span> (Sequential Series).
+                    </div>
 
-              {/* Section 2: BDE Survey Intelligence */}
-              <div className="pt-2 border-t border-[#E7E0FB] space-y-3">
-                <div className="flex items-center gap-1.5 font-bold text-[#7C2CF5] text-xs uppercase tracking-wider">
-                  <Sparkles className="w-4 h-4" />
-                  <span>Survey Intelligence, Proofs & Needs Analysis</span>
-                </div>
+                    <div className="pt-2 border-t border-[#DDD0FE]/70 grid grid-cols-2 gap-2 text-[11px]">
+                      <div>
+                        <span className="text-[#585172]">Company:</span>{' '}
+                        <strong className="text-[#120E24]">{companyName || '—'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-[#585172]">Contact:</span>{' '}
+                        <strong className="text-[#120E24]">{contactName || '—'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-[#585172]">Work Email:</span>{' '}
+                        <span className="text-[#7C2CF5] font-semibold">{email || '—'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[#585172]">Assigned BDE:</span>{' '}
+                        <strong className="text-[#120E24]">{assignedBdeName || session?.user?.fullName}</strong>
+                      </div>
+                    </div>
+                  </div>
 
-                <div>
-                  <label className="block font-bold text-[#120E24] mb-1">
-                    What They Need (Client Pain Points & Requirement Survey) *
-                  </label>
-                  <textarea
-                    required
-                    rows={2}
-                    value={clientNeeds}
-                    onChange={(e) => setClientNeeds(e.target.value)}
-                    className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                    placeholder="Describe specific problems they face (e.g. Current legacy web app is slow, drops orders, lacks real-time inventory and modern security)..."
-                  />
+                  {/* Stage 4 Actions */}
+                  <div className="pt-3 border-t border-[#E7E0FB] flex justify-between items-center">
+                    <button
+                      type="button"
+                      onClick={() => setFormStage(3)}
+                      className="px-4 py-2 border border-[#E7E0FB] rounded-xl text-[#585172] hover:bg-[#F7F5FE] font-bold transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      <span>Back: Solution</span>
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white rounded-xl font-bold shadow-lg shadow-[#7C2CF5]/30 transition cursor-pointer flex items-center gap-2"
+                    >
+                      <Send className="w-4 h-4" />
+                      <span>Submit Lead to CRM Pipeline</span>
+                    </button>
+                  </div>
                 </div>
-
-                <div>
-                  <label className="block font-bold text-[#120E24] mb-1">
-                    How CodRix Can Help (Proposed Solution & Value Pitch) *
-                  </label>
-                  <textarea
-                    required
-                    rows={2}
-                    value={codrixSolution}
-                    onChange={(e) => setCodrixSolution(e.target.value)}
-                    className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                    placeholder="State how CodRix delivers value (e.g. Build modern Next.js + Socket.IO microservice stack, automated deployment, estimated 4 weeks)..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-[#120E24] mb-1">
-                    Proof & Research Links (Website, LinkedIn, References, Survey URLs)
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={proofLinks}
-                    onChange={(e) => setProofLinks(e.target.value)}
-                    className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                    placeholder="Provide URLs (e.g. https://apex.com, https://linkedin.com/in/sunilroy, https://twitter.com/...)..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-[#120E24] mb-1">
-                    Survey & Research Notes (Additional observations, budget signals)
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={researchPoints}
-                    onChange={(e) => setResearchPoints(e.target.value)}
-                    className="w-full border border-[#E7E0FB] bg-[#FBFBFE] rounded-xl px-3 py-2 text-[#120E24] focus:border-[#7C2CF5] focus:outline-none"
-                    placeholder="e.g. Verified on LinkedIn that they expanded operations to 3 new cities and raised seed funding..."
-                  />
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-[#E7E0FB] flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setAddLeadOpen(false)}
-                  className="px-4 py-2 border border-[#E7E0FB] rounded-xl text-[#585172] hover:bg-[#F7F5FE] font-bold transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-[#7C2CF5] hover:bg-[#6D25D9] text-white rounded-xl font-bold shadow-md shadow-[#7C2CF5]/25 transition cursor-pointer flex items-center gap-1.5"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Submit Lead for Quality Review</span>
-                </button>
-              </div>
+              )}
             </form>
           </div>
         </div>
@@ -1916,9 +2391,16 @@ export const CrmView: React.FC = () => {
                     <Building className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="text-[10px] uppercase font-bold text-[#7C2CF5] tracking-wider">
-                      Unified 360 Profile & Intelligence
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] uppercase font-bold text-[#7C2CF5] tracking-wider">
+                        Unified 360 Profile & Intelligence
+                      </span>
+                      {lead360ModalData.lead?.leadCode && (
+                        <span className="px-2 py-0.5 rounded-md bg-[#F0ECFC] border border-[#DDD0FE] text-[#7C2CF5] font-mono font-bold text-[10px]">
+                          {lead360ModalData.lead.leadCode}
+                        </span>
+                      )}
+                    </div>
                     <h3 className="font-extrabold text-lg text-[#120E24] leading-tight">
                       {lead360ModalData.lead?.companyName || 'Enterprise Lead'}
                     </h3>
