@@ -14,9 +14,7 @@ import {
   ArrowLeft,
   User,
   KeyRound,
-  Check,
-  Zap,
-  Users
+  Check
 } from 'lucide-react';
 import { workStateManager } from '../../core/workStateManager.js';
 
@@ -270,125 +268,27 @@ export const LoginView: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FBFBFE] relative overflow-hidden font-['Plus_Jakarta_Sans',sans-serif] flex items-center justify-center px-4 py-8 sm:px-6 lg:px-12">
-      {/* Background ambient glows matching CodRix visual design */}
-      <div className="absolute top-1/4 -left-20 w-[550px] h-[550px] bg-[#7C2CF5]/10 blur-[130px] rounded-full pointer-events-none"></div>
-      <div className="absolute bottom-10 right-0 w-[500px] h-[500px] bg-[#6366F1]/10 blur-[130px] rounded-full pointer-events-none"></div>
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-[#9D5CFA]/5 blur-[150px] rounded-full pointer-events-none"></div>
+    <div
+      className="min-h-screen relative overflow-hidden font-['Plus_Jakarta_Sans',sans-serif] flex items-center justify-center px-4 py-8 sm:px-6 lg:px-12"
+      style={{
+        background: 'linear-gradient(135deg, #130724 0%, #290B52 30%, #4A1286 65%, #7C2CF5 100%)'
+      }}
+    >
+      {/* Dynamic ambient glow matching the logo's purple/violet gradient tones */}
+      <div className="absolute top-1/4 -right-20 w-[600px] h-[600px] bg-[#9D5CFA]/25 blur-[160px] rounded-full pointer-events-none"></div>
+      <div className="absolute -bottom-20 -left-20 w-[600px] h-[600px] bg-[#7C2CF5]/30 blur-[160px] rounded-full pointer-events-none"></div>
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[750px] h-[750px] bg-[#6366F1]/15 blur-[180px] rounded-full pointer-events-none"></div>
 
-      {/* Main Container */}
-      <div className="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center relative z-10">
+      {/* Main Grid Container: Form on the Left, Logo & "CodRix Connect" in Center on the Right */}
+      <div className="w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-center relative z-10">
         
         {/* ========================================================= */}
-        {/* LEFT COLUMN: Logo -> "CodRix" -> "Connect" + Graphics   */}
+        {/* LEFT COLUMN: Clean Authentication Form Card               */}
         {/* ========================================================= */}
-        <div className="lg:col-span-6 flex flex-col items-start justify-center py-4 lg:py-8 lg:pr-6 space-y-6">
-          {/* Platform Status Pill */}
-          <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-white border border-[#E7E0FB] shadow-xs text-xs font-semibold text-[#585172]">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            <span>Enterprise Cloud Platform</span>
-            <span className="text-[#E7E0FB]">•</span>
-            <span className="text-[#7C2CF5] font-bold">Secure v2.4</span>
-          </div>
-
-          {/* Logo, CodRix, and Connect Brand Block */}
-          <div className="space-y-4">
-            {/* Company Logo */}
-            <div className="relative group inline-block">
-              <div className="absolute -inset-2 bg-gradient-to-r from-[#7C2CF5] via-[#9D5CFA] to-[#6366F1] rounded-3xl blur-xl opacity-25 group-hover:opacity-45 transition duration-500"></div>
-              <div className="relative p-4 rounded-3xl bg-white border border-[#E7E0FB] shadow-xl shadow-[#7C2CF5]/10 flex items-center justify-center">
-                <img
-                  src="/logo-icon.png"
-                  alt="CodRix Official Logo"
-                  className="w-16 h-16 sm:w-20 sm:h-20 object-contain drop-shadow-md"
-                />
-              </div>
-            </div>
-
-            {/* Below Logo: Company Name "CodRix" */}
-            <div>
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-[#120E24] tracking-tight leading-none">
-                CodRix
-              </h1>
-              
-              {/* Below Company Name: Word "Connect" */}
-              <div className="mt-1 flex items-baseline gap-2">
-                <span className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight bg-gradient-to-r from-[#7C2CF5] via-[#9B51E0] to-[#6366F1] bg-clip-text text-transparent">
-                  Connect
-                </span>
-                <span className="inline-block w-2.5 h-2.5 rounded-full bg-[#7C2CF5] animate-pulse"></span>
-              </div>
-            </div>
-
-            <p className="text-sm sm:text-base text-[#585172] max-w-lg leading-relaxed pt-1 font-medium">
-              The next-generation multi-tenant enterprise operating system. Unifying workforce intelligence, recruitment pipelines, CRM, projects, and secure communications.
-            </p>
-          </div>
-
-          {/* Graphics & Enterprise Feature Highlights */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 w-full max-w-lg pt-1">
-            <div className="p-3.5 rounded-2xl bg-white/80 border border-[#E7E0FB] shadow-xs flex items-start gap-3 backdrop-blur-xs">
-              <div className="p-2 rounded-xl bg-[#F6F3FF] text-[#7C2CF5] shrink-0 mt-0.5">
-                <ShieldCheck className="w-4 h-4" />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold text-[#120E24]">Argon2id Vault</h4>
-                <p className="text-[11px] text-[#585172] mt-0.5">Zero-trust memory-hard password encryption</p>
-              </div>
-            </div>
-
-            <div className="p-3.5 rounded-2xl bg-white/80 border border-[#E7E0FB] shadow-xs flex items-start gap-3 backdrop-blur-xs">
-              <div className="p-2 rounded-xl bg-purple-50 text-[#7C2CF5] shrink-0 mt-0.5">
-                <Zap className="w-4 h-4" />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold text-[#120E24]">Real-Time Sync</h4>
-                <p className="text-[11px] text-[#585172] mt-0.5">Resend webhooks, reactive sockets, and live states</p>
-              </div>
-            </div>
-
-            <div className="p-3.5 rounded-2xl bg-white/80 border border-[#E7E0FB] shadow-xs flex items-start gap-3 backdrop-blur-xs">
-              <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600 shrink-0 mt-0.5">
-                <Users className="w-4 h-4" />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold text-[#120E24]">Granular Access</h4>
-                <p className="text-[11px] text-[#585172] mt-0.5">Superadmin controlled module and workspace permissions</p>
-              </div>
-            </div>
-
-            <div className="p-3.5 rounded-2xl bg-white/80 border border-[#E7E0FB] shadow-xs flex items-start gap-3 backdrop-blur-xs">
-              <div className="p-2 rounded-xl bg-amber-50 text-amber-600 shrink-0 mt-0.5">
-                <Clock className="w-4 h-4" />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold text-[#120E24]">Auto Session Defense</h4>
-                <p className="text-[11px] text-[#585172] mt-0.5">15-minute inactivity lock with instant work preservation</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Infrastructure trust badge */}
-          <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-[#585172] pt-1">
-            <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Cloudflare Edge SSL Active</span>
-            </div>
-            <span className="text-[#E7E0FB]">•</span>
-            <span className="text-[#7C2CF5] font-bold">connect.codrix.co.in</span>
-          </div>
-        </div>
-
-        {/* ========================================================= */}
-        {/* RIGHT COLUMN: Authentication Card Form (Aligned Right)    */}
-        {/* ========================================================= */}
-        <div className="lg:col-span-6 flex items-center justify-center lg:justify-end w-full">
-          <div className="max-w-md w-full bg-white border border-[#E7E0FB] rounded-3xl shadow-2xl shadow-[#7C2CF5]/10 p-7 sm:p-9 relative">
+        <div className="order-2 lg:order-1 lg:col-span-6 flex items-center justify-center lg:justify-start w-full">
+          <div className="max-w-md w-full bg-white border border-[#E7E0FB] rounded-3xl shadow-2xl shadow-black/25 p-7 sm:p-9 relative">
             
-            {/* Card Header */}
+            {/* Form Card Header */}
             <div className="mb-6">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-bold text-[#7C2CF5] uppercase tracking-wider bg-[#F6F3FF] px-2.5 py-1 rounded-lg border border-[#E7E0FB]">
@@ -397,7 +297,7 @@ export const LoginView: React.FC = () => {
                   {mode === 'FORGOT_PASSWORD' && 'Recovery'}
                   {mode === 'RESET_PASSWORD' && 'Security'}
                 </span>
-                <span className="text-[11px] text-[#585172] font-semibold">Enterprise Workspace</span>
+                <span className="text-[11px] text-[#585172] font-semibold">Workspace Access</span>
               </div>
               <h2 className="text-2xl font-black text-[#120E24] tracking-tight">
                 {mode === 'LOGIN' && 'Sign In to Workspace'}
@@ -780,6 +680,39 @@ export const LoginView: React.FC = () => {
             </div>
 
           </div>
+        </div>
+
+        {/* ========================================================= */}
+        {/* RIGHT COLUMN: Logo, "CodRix", and "Connect" (In Center)   */}
+        {/* ========================================================= */}
+        <div className="order-1 lg:order-2 lg:col-span-6 flex flex-col items-center justify-center text-center py-6 lg:py-12 space-y-6">
+          
+          {/* Logo container in center with ambient luminous backing */}
+          <div className="relative group inline-block">
+            <div className="absolute -inset-3 bg-gradient-to-r from-[#A855F7] via-[#C084FC] to-[#7C2CF5] rounded-3xl blur-2xl opacity-40 group-hover:opacity-70 transition duration-500"></div>
+            <div className="relative p-5 sm:p-6 rounded-3xl bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl flex items-center justify-center">
+              <img
+                src="/logo-icon.png"
+                alt="CodRix Official Logo"
+                className="w-20 h-20 sm:w-28 sm:h-28 object-contain drop-shadow-2xl"
+              />
+            </div>
+          </div>
+
+          {/* Typography: "CodRix" and "Connect" in Center */}
+          <div className="space-y-1.5 flex flex-col items-center justify-center text-center">
+            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-white tracking-tight leading-none drop-shadow-lg">
+              CodRix
+            </h1>
+            
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-tight bg-gradient-to-r from-white via-[#E9D5FF] to-[#DDD0FE] bg-clip-text text-transparent drop-shadow-md">
+                Connect
+              </span>
+              <span className="inline-block w-3 h-3 rounded-full bg-white/90 shadow-lg shadow-white/50 animate-pulse"></span>
+            </div>
+          </div>
+
         </div>
 
       </div>
