@@ -8,9 +8,7 @@ import {
   Eye,
   EyeOff,
   ShieldCheck,
-  Clock,
   CheckCircle2,
-  Save,
   ArrowLeft,
   User,
   KeyRound,
@@ -50,7 +48,6 @@ export const LoginView: React.FC = () => {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
-  const [timeoutNotice, setTimeoutNotice] = useState<any | null>(null);
 
   const turnstileContainerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
@@ -72,11 +69,8 @@ export const LoginView: React.FC = () => {
     }
 
     const notice = workStateManager.getTimeoutNotice();
-    if (notice) {
-      setTimeoutNotice(notice);
-      if (notice.userEmail && !email) {
-        setEmail(notice.userEmail);
-      }
+    if (notice?.userEmail && !email) {
+      setEmail(notice.userEmail);
     }
   }, []);
 
@@ -312,43 +306,6 @@ export const LoginView: React.FC = () => {
                 {mode === 'RESET_PASSWORD' && 'Choose a strong password with Argon2id protection.'}
               </p>
             </div>
-
-            {/* 15-Minute Inactivity Session Notice Banner (Only shown on Login) */}
-            {mode === 'LOGIN' && timeoutNotice && (
-              <div className="mb-6 p-4 bg-amber-50/90 border border-amber-200/90 rounded-2xl text-amber-900 shadow-xs animate-in fade-in duration-300">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-xl bg-amber-100 text-amber-800 shrink-0 mt-0.5">
-                    <Clock className="w-4 h-4" />
-                  </div>
-                  <div className="space-y-1.5 flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wide">
-                        Session Logged Out (15m Inactivity)
-                      </h4>
-                      <span className="text-[10px] font-semibold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-full">
-                        Auto-Protected
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-amber-800 leading-relaxed">
-                      Your session timed out after 15 minutes of inactivity to protect your workspace security.
-                    </p>
-                    <div className="p-2.5 rounded-xl bg-white/80 border border-amber-200/70 text-[11px] flex items-start gap-2">
-                      <Save className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
-                      <div>
-                        <span className="font-semibold text-emerald-800">Your last work was safely preserved:</span>
-                        <div className="font-medium text-[#120E24] mt-0.5 italic">
-                          "{timeoutNotice.summary || 'Active Workspace Session'}"
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-[10px] text-amber-700 font-medium flex items-center gap-1 pt-0.5">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                      <span>Log back in below to continue exactly where you left off.</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Error Notification */}
             {error && (
